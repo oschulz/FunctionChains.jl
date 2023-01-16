@@ -39,6 +39,8 @@ export FunctionChain
 
 Functors.@functor FunctionChain
 
+Adapt.adapt_structure(target, f::FunctionChain) = FunctionChain(map(elem -> Adapt.adapt(target, elem), f.fs))
+
 
 function Base.show(io::IO, m::MIME"text/plain", fc::FunctionChain)
     print(io, "FunctionChain(")

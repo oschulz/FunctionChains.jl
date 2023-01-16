@@ -12,6 +12,8 @@ using ChangesOfVariables
 using Functors
 using InverseFunctions
 
+import Adapt
+
 include("utils.jl")
 include("function_chain.jl")
 

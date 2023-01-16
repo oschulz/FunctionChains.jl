@@ -4,6 +4,7 @@ using FunctionChains
 using Test
 using Base.Iterators: repeated, take
 using InverseFunctions, ChangesOfVariables
+using Adapt
 
 include("getjacobian.jl")
 include("testfuncs.jl")
@@ -50,6 +51,8 @@ include("testfuncs.jl")
     f = fchain(AffineStep.((*, +, \, -), (3, 2, 2.5, 4)))
     @test @inferred(f([1.1, 2.2])) == 2.5 \ (3 * [1.1, 2.2] .+ 2) .- 4
     test_function_chain(f, [1.1, 2.2], true, true, "Tuple of AffineStep")
+
+    @test @inferred(adapt(Array, f)) == f
 
     @test @inferred(fchain(AffineStep.(*, 2:5))) isa FunctionChain{Vector{AffineStep{typeof(*),Int}}}
     f = fchain(AffineStep.(*, 2:5))

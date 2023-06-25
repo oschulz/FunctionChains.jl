@@ -13,6 +13,37 @@ export with_intermediate_results
 with_intermediate_results(f, x) = (f(x),)
 
 
+struct _AsFunction{F} <: Function
+    f::F
+end
+
+Base.:(==)(a::_AsFunction, b::_AsFunction) = a.f == b.f
+Base.isapprox(a::_AsFunction, b::_AsFunction; kwargs...) = isapprox(a.f, b.f; kwargs...)
+
+@inline (ff::_AsFunction{F})(xs...) where F = ff.f(xs...)
+
+@inline _typed_func(f) = f
+@inline _typed_func(f::Type{T}) where T = _AsFunction{Type{T}}(f)::_AsFunction{Type{T}}
+
+@inline @generated function _typed_funcs_tuple(fs::Vararg{Any,N}) where N
+    expr = Expr(:tuple)
+    for i in 1:N
+        if fs[i] <: Type
+            push!(expr.args, :(_AsFunction{$(fs[i])}(fs[$i])))
+        # Future option (breaking) - flatten FunctionChains:
+        # elseif fs[i] <: FunctionChain{<:Tuple}
+        #    push!(expr.args, :(fs[$i].fs...))
+        else
+            # Future option (breaking) - remove identities:
+            #if !(fs[i] <: typeof(identity))
+                push!(expr.args, :(fs[$i]))
+            #end
+        end
+    end
+    return expr
+end
+
+
 """
     struct FunctionChain{FS}<:Function
 
@@ -37,37 +68,53 @@ end
 export FunctionChain
 
 
+Base.:(==)(a::FunctionChain, b::FunctionChain) = a.fs == b.fs
+Base.isapprox(a::FunctionChain, b::FunctionChain; kwargs...) = _isapprox(a.fs, b.fs; kwargs...)
+
+_isapprox(a, b; kwargs...) = isapprox(a, b; kwargs...)
+_isapprox(a::Tuple{Vararg{Any,N}}, b::Tuple{Vararg{Any,N}}; kwargs...) where N = all(map((a, b) ->_isapprox(a, b; kwargs...), a, b))
+
+
 function Base.show(io::IO, m::MIME"text/plain", fc::FunctionChain)
-    print(io, "FunctionChain(")
+    print(io, "fchain(")
     show(io, m, fc.fs)
     print(io, ")")
 end
 
-function Base.show(io::IO, fc::FunctionChain)
-    print(io, "FunctionChain(")
-    show(io, fc.fs)
-    print(io, ")")
+function Base.show(io::IO, m::MIME"text/plain", fc::FunctionChain{<:Tuple})
+    print(io, "fchain")
+    show(io, m, fc.fs)
 end
+
+Base.show(io::IO, fc::FunctionChain) = show(io, MIME"text/plain"(), fc)
 
 
 convert(::Type{FunctionChain}, f::ComposedFunction) = ComposedFunction(_flatten_composed(f))
 
-@inline _flatten_composed(f::F) where {F} = (f,)
-@inline _flatten_composed(f::F) where {F<:ComposedFunction} = (_flatten_composed(f.inner)..., _flatten_composed(f.outer)...)
+@inline _flatten_composed(f::F) where {F} = (_typed_func(f),)
+@inline _flatten_composed(f::F) where {F<:ComposedFunction} = _typed_funcs_tuple(_flatten_composed(f.inner)..., _flatten_composed(f.outer)...)
 
-@inline Base.:(∘)(f::FunctionChain, g::FunctionChain) = FunctionChain((g, f))
-@inline Base.:(∘)(f::FunctionChain, g) = FunctionChain((_flatten_composed(g)..., f))
-@inline Base.:(∘)(f, g::FunctionChain) = FunctionChain((g, _flatten_composed(f)...))
+@inline Base.:(∘)(f::FunctionChain, g::FunctionChain) = _compose_fc_fc(f, g)
+@inline Base.:(∘)(f::FunctionChain, g::ComposedFunction) = _compose_fc_fc(f, FunctionChain(_flatten_composed(g)))
+@inline Base.:(∘)(f::ComposedFunction, g::FunctionChain) = _compose_fc_fc(FunctionChain(_flatten_composed(f)), g)
+@inline Base.:(∘)(f::FunctionChain, g) = _compose_fc_sf(f, _typed_func(g))
+@inline Base.:(∘)(f, g::FunctionChain) = _compose_sf_fc(_typed_func(f), g)
 @inline Base.:(∘)(f::FunctionChain, ::typeof(identity)) = f
 @inline Base.:(∘)(::typeof(identity), g::FunctionChain) = g
 
-@inline Base.:(∘)(f::FunctionChain{<:Tuple}, g::FunctionChain{<:Tuple}) = FunctionChain((g.fs..., f.fs...))
-@inline Base.:(∘)(f::FunctionChain{<:Tuple}, g) = FunctionChain((_flatten_composed(g)..., f.fs...))
-@inline Base.:(∘)(f, g::FunctionChain{<:Tuple}) = FunctionChain((g.fs..., _flatten_composed(f)...))
+@inline _compose_fc_fc(f::FunctionChain, g::FunctionChain) = FunctionChain((g, f))
+@inline _compose_fc_fc(f::FunctionChain{<:Tuple}, g::FunctionChain) = FunctionChain((g, f.fs...))
+@inline _compose_fc_fc(f::FunctionChain, g::FunctionChain{<:Tuple}) = FunctionChain((g.fs..., f))
+@inline _compose_fc_fc(f::FunctionChain{<:Tuple}, g::FunctionChain{<:Tuple}) = FunctionChain((g.fs..., f.fs...))
+@inline _compose_fc_fc(f::FunctionChain{<:AbstractVector{F}}, g::FunctionChain{<:AbstractVector{F}}) where F = FunctionChain(vcat(g.fs, f.fs))
 
-@inline Base.:(∘)(f::FunctionChain{<:AbstractVector{F}}, g::FunctionChain{<:AbstractVector{F}}) where F = FunctionChain(vcat(g.fs, f.fs))
-@inline Base.:(∘)(f::FunctionChain{<:AbstractVector{F}}, g::F) where F = FunctionChain(pushfirst!(copy(f.fs), _flatten_composed(g)))
-#!!! @inline Base.:(∘)(f::F, g::FunctionChain{<:AbstractVector{F}}), where F = FunctionChain(push!(copy(g.fs), _flatten_composed(f)))
+@inline _compose_fc_sf(f::FunctionChain, g) = FunctionChain((g, f))
+@inline _compose_fc_sf(f::FunctionChain{<:Tuple}, g) = FunctionChain((g, f.fs...))
+@inline _compose_fc_sf(f::FunctionChain{<:AbstractVector{F}}, g::F) where F = FunctionChain(pushfirst!(copy(f.fs), g))
+
+@inline _compose_sf_fc(f, g::FunctionChain) = FunctionChain((g, f))
+@inline _compose_sf_fc(f, g::FunctionChain{<:Tuple}) = FunctionChain((g.fs..., f))
+@inline _compose_sf_fc(f::F, g::FunctionChain{<:AbstractVector{F}}) where F = FunctionChain(push!(copy(g.fs), f))
 
 
 _iterate_fs(::Nothing, fs, x) = throw(ArgumentError("Chain of functions must not be an empty iterable"))
@@ -156,5 +203,17 @@ other function chain types for specific types of functions.
 function fchain end
 export fchain
 
-fchain() = FunctionChain(())
-fchain(fs) = FunctionChain(fs)
+@inline fchain() = FunctionChain(())
+
+@inline fchain(fs::FS) where FS = _fchain_onearg(fs, Val(static_hasmethod(iterate, Tuple{FS})))
+_fchain_onearg(fs::FS, ::Val{true}) where FS = FunctionChain(fs)
+_fchain_onearg(f::F, ::Val{false}) where F = FunctionChain(_typed_funcs_tuple(f))
+
+@inline fchain(fs::Tuple{Vararg{Function, N}}) where N = FunctionChain(fs)
+
+function fchain(fs::Tuple{Vararg{Any, N}}) where N
+    Base.depwarn("fchain(fs::Tuple) with fs elements not of type Function is deprecated due to possible type instabilities, use `fchain(fs...)` instead.", :fchain)
+    fchain(fs...)
+end
+
+@inline fchain(fs::Vararg{Any,N}) where N = FunctionChain(_typed_funcs_tuple(fs...))

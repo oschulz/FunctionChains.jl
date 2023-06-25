@@ -5,5 +5,9 @@ import Aqua
 import FunctionChains
 
 Test.@testset "Aqua tests" begin
-    Aqua.test_all(FunctionChains)
+    Aqua.test_all(
+        FunctionChains,
+        ambiguities = true,
+        project_toml_formatting = VERSION≥v"1.7"
+    )
 end # testset

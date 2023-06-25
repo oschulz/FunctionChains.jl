@@ -7,6 +7,8 @@ Implements chained functions (composed functions) beyond `Base.ComposedFunction`
 """
 module FunctionChains
 
+using Tricks: static_hasmethod
+
 include("utils.jl")
 include("function_chain.jl")
 

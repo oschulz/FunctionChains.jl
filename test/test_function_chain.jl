@@ -4,13 +4,16 @@ using FunctionChains
 using Test
 using Base.Iterators: repeated, take
 using InverseFunctions, ChangesOfVariables
-using Adapt
+import Adapt, Functors
+using AffineMaps
+import ForwardDiff
 
 include("getjacobian.jl")
 include("testfuncs.jl")
 
-
 @testset "function_chain" begin
+    bcf(f) = Base.Broadcast.BroadcastFunction(f)
+
     function test_function_chain(fc, x, invertible::Bool, with_ladj::Bool, label::AbstractString)
         @testset "$label" begin
             @test !any(x -> x isa ComposedFunction, fc.fs)
@@ -47,28 +50,86 @@ include("testfuncs.jl")
         end
     end
 
-    @test @inferred(fchain(AffineStep.((*, +, \, -), (3, 2, 2.5, 4)))) isa FunctionChain{<:NTuple{N,AffineStep} where N}
-    f = fchain(AffineStep.((*, +, \, -), (3, 2, 2.5, 4)))
+    @testset "fchain" begin
+        @test @inferred(fchain()) isa FunctionChain
+        @test @inferred(fchain(log)) isa FunctionChain
+        @test @inferred(fchain(exp)) isa FunctionChain
+        @test @inferred(fchain(log, exp)) isa FunctionChain
+        @test @inferred(fchain((log, exp))) isa FunctionChain
+        @test @inferred(fchain([log, exp])) isa FunctionChain
+        @test @inferred(fchain(log, ForwardDiff.Dual)) isa FunctionChain
+        @test @inferred(fchain(log, AbstractFloat)) isa FunctionChain
+        @test @inferred(fchain(ForwardDiff.Dual, bcf(log))) isa FunctionChain
+        @test @inferred(fchain(AbstractFloat, bcf(log))) isa FunctionChain
+        @test @inferred(fchain((Mul(i) for i in 3:4))) isa FunctionChain
+
+        # Not inferrable:
+        @test_deprecated fchain((log, ForwardDiff.Dual)) isa FunctionChain
+    end
+
+
+    @testset "composition" begin
+        for f in [identity, fchain(log, exp), fchain((Mul(i) for i in 3:4)), ForwardDiff.Dual, AbstractFloat]
+            for g in [identity, fchain(log, exp), fchain((Mul(i) for i in 3:4)), ForwardDiff.Dual, AbstractFloat]
+                if f isa FunctionChain || g isa FunctionChain
+                    x = 0.73
+                    try
+                        @test @inferred(f ∘ g) isa FunctionChain
+                        @test @inferred((f ∘ g)(x)) == f(g(x))
+                    catch
+                        global g_state = (;f, g)
+                    end
+                    @test @inferred(f ∘ g) isa FunctionChain
+                    @test @inferred((f ∘ g)(x)) == f(g(x))
+                end
+            end
+        end
+
+        @test @inferred(fchain(Mul(1), Mul(2)) ∘ fchain(Mul(3), Mul(4))) == FunctionChain((Mul(3), Mul(4), Mul(1), Mul(2)))
+        @test @inferred(fchain(Mul(3), Mul(4)) ∘ fchain(Mul(1), Mul(2))) == FunctionChain((Mul(1), Mul(2), Mul(3), Mul(4)))
+        @test @inferred(fchain([Mul(1), Mul(2)]) ∘ fchain([Mul(3), Mul(4)])) == FunctionChain([Mul(3), Mul(4), Mul(1), Mul(2)])
+        @test @inferred(fchain([Mul(3), Mul(4)]) ∘ fchain([Mul(1), Mul(2)])) == FunctionChain([Mul(1), Mul(2), Mul(3), Mul(4)])
+
+        @test @inferred(fchain(Mul(1), Mul(2)) ∘ Mul(3)) == FunctionChain((Mul(3), Mul(1), Mul(2)))
+        @test @inferred(Mul(3) ∘ fchain(Mul(1), Mul(2))) == FunctionChain((Mul(1), Mul(2), Mul(3)))
+        @test @inferred(fchain([Mul(1), Mul(2)]) ∘ Mul(3)) == FunctionChain([Mul(3), Mul(1), Mul(2)])
+        @test @inferred(Mul(3) ∘ fchain([Mul(1), Mul(2)])) == FunctionChain([Mul(1), Mul(2), Mul(3)])
+    end
+
+    let f = fchain(Mul(rand(3,3)), Add(rand(3)), Mul(rand(3,3)))
+        @test f == deepcopy(f)
+
+        @static if VERSION >= v"1.9"
+            @test @inferred(Adapt.adapt(Array{Float32}, f)) ≈ f
+        else
+            @test Adapt.adapt(Array{Float32}, f) ≈ f
+        end
+        @test @inferred(Adapt.adapt(Array{Float32}, f)(rand(Float32, 3))) isa Vector{Float32}
+
+        @test Functors.fmap(Array{Float32}, f) ≈ f
+        @test @inferred(Functors.fmap(Array{Float32}, f)(rand(Float32, 3))) isa Vector{Float32}
+    end
+
+    @test @inferred(fchain(Mul(3), Add(2), InvMul(2.5), Subtract(4))) isa FunctionChain
+    f = fchain(Mul(3), Add(2), InvMul(2.5), Subtract(4))
     @test @inferred(f([1.1, 2.2])) == 2.5 \ (3 * [1.1, 2.2] .+ 2) .- 4
-    test_function_chain(f, [1.1, 2.2], true, true, "Tuple of AffineStep")
+    test_function_chain(f, [1.1, 2.2], true, true, "Tuple of AffineMap")
 
-    @test @inferred(adapt(Array, f)) == f
-
-    @test @inferred(fchain(AffineStep.(*, 2:5))) isa FunctionChain{Vector{AffineStep{typeof(*),Int}}}
-    f = fchain(AffineStep.(*, 2:5))
+    @test @inferred(fchain(Mul.(2:5))) isa FunctionChain{Vector{Mul{Int}}}
+    f = fchain(Mul.(2:5))
     @test @inferred(f(1.2)) ≈ 1.2 * prod(2:5)
-    test_function_chain(f, 1.2, true, true, "Vector of AffineStep, scalar arg")
+    test_function_chain(f, 1.2, true, true, "Vector of Mul, scalar arg")
     @test @inferred(with_intermediate_results(f, [1.1, 2.2])) ≈ [[2.2, 4.4], [6.6, 13.2], [26.4, 52.8], [132.0, 264.0]]
-    test_function_chain(f, [1.1, 2.2], true, true, "Tuple of AffineStep, vector arg")
+    test_function_chain(f, [1.1, 2.2], true, true, "Tuple of Mul, vector arg")
 
-    @test @inferred(fchain(AffineStep(*, i) for i in 2:5)) isa FunctionChain{<:Base.Generator}
-    f = fchain(AffineStep(*, i) for i in 2:5)
+    @test @inferred(fchain(Mul(i) for i in 2:5)) isa FunctionChain{<:Base.Generator}
+    f = fchain(Mul(i) for i in 2:5)
     @test @inferred(with_intermediate_results(f, [1.1, 2.2])) ≈ [[2.2, 4.4], [6.6, 13.2], [26.4, 52.8], [132.0, 264.0]]
-    test_function_chain(f, [1.1, 2.2], false, true, "Generator of AffineStep")
+    test_function_chain(f, [1.1, 2.2], false, true, "Generator of Mul")
 
-    @test @inferred(fchain(repeated(AffineStep(*, 2), 5))) isa FunctionChain{<:Base.Iterators.Take}
-    f = fchain(repeated(AffineStep(*, 2), 5))
-    test_function_chain(f, [1.1, 2.2], true, true, "Generator of AffineStep")
+    @test @inferred(fchain(repeated(Mul(2), 5))) isa FunctionChain{<:Base.Iterators.Take}
+    f = fchain(repeated(Mul(2), 5))
+    test_function_chain(f, [1.1, 2.2], true, true, "Generator of Mul")
 
     @test @inferred(inv ∘ fchain() ∘ (expm1 ∘ log)) == fchain((log, expm1, inv))
     @test @inferred(fchain((log, expm1, inv))(0.3)) == (inv ∘ expm1 ∘ log)(0.3)

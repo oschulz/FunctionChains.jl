@@ -8,6 +8,12 @@ import Adapt, Functors
 using AffineMaps
 import ForwardDiff
 
+import Pkg
+if ("FlexiMaps" in keys(Pkg.project().dependencies))
+    # FlexiMaps supports Julia >= v1.9 only.
+    import FlexiMaps
+end
+
 include("getjacobian.jl")
 include("testfuncs.jl")
 
@@ -137,4 +143,16 @@ include("testfuncs.jl")
     test_function_chain(fchain(fill(expm1, 3)), 0.3, true, true, "fill-expm1")
     test_function_chain(fchain((log, sin, expm1, inv)), 0.3, false, false, "log-sin-expm1-inv")
     test_function_chain(fchain(fill(sin, 3)), 0.3, false, false, "fill-sin")
+
+    @static if isdefined(Main, :FlexiMaps)
+        @testset "FlexiMaps support" begin
+            @test @inferred(FlexiMaps.islinear(fchain(Mul(4), Mul(3)))) == true
+            @test @inferred(FlexiMaps.islinear(fchain(Mul(4), Add(3)))) == false
+            @test @inferred(FlexiMaps.islinear(fchain(sin, cos))) == false
+
+            @test @inferred(FlexiMaps.isaffine(fchain(Mul(4), Mul(3)))) == true
+            @test @inferred(FlexiMaps.isaffine(fchain(Mul(4), Add(3)))) == true
+            @test @inferred(FlexiMaps.isaffine(fchain(sin, cos))) == false
+        end
+    end
 end

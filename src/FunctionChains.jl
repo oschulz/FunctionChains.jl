@@ -15,6 +15,7 @@ include("function_chain.jl")
 @static if !isdefined(Base, :get_extension)
     include("../ext/FunctionChainsAdaptExt.jl")
     include("../ext/FunctionChainsChangesOfVariablesExt.jl")
+    # FlexiMaps supports Julia >= v1.9 only
     include("../ext/FunctionChainsFunctorsExt.jl")
     include("../ext/FunctionChainsInverseFunctionsExt.jl")
 end

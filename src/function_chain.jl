@@ -37,11 +37,6 @@ end
 export FunctionChain
 
 
-Functors.@functor FunctionChain
-
-Adapt.adapt_structure(target, f::FunctionChain) = FunctionChain(map(elem -> Adapt.adapt(target, elem), f.fs))
-
-
 function Base.show(io::IO, m::MIME"text/plain", fc::FunctionChain)
     print(io, "FunctionChain(")
     show(io, m, fc.fs)
@@ -73,32 +68,6 @@ convert(::Type{FunctionChain}, f::ComposedFunction) = ComposedFunction(_flatten_
 @inline Base.:(∘)(f::FunctionChain{<:AbstractVector{F}}, g::FunctionChain{<:AbstractVector{F}}) where F = FunctionChain(vcat(g.fs, f.fs))
 @inline Base.:(∘)(f::FunctionChain{<:AbstractVector{F}}, g::F) where F = FunctionChain(pushfirst!(copy(f.fs), _flatten_composed(g)))
 #!!! @inline Base.:(∘)(f::F, g::FunctionChain{<:AbstractVector{F}}), where F = FunctionChain(push!(copy(g.fs), _flatten_composed(f)))
-
-
-_reverse(fs) = reverse(fs)
-_reverse(fs::Base.Iterators.Repeated) = fs
-_reverse(fs::Base.Iterators.Take{<:Base.Iterators.Repeated}) = fs
-
-_is_noinverse(f) = f isa NoInverse
-_contains_noinverse(fs) = Val(any(_is_noinverse, fs))
-@generated function _contains_noinverse(fs::Tuple)
-    result = any(x -> x <: NoInverse, fs.parameters)
-    :(Val($result))
-end
-_contains_noinverse(fs::AbstractArray) = Val(false)
-_contains_noinverse(fs::AbstractArray{<:NoInverse}) = Val(true)
-_contains_noinverse(fs::AbstractArray{>:NoInverse}) = Val(any(_is_noinverse, fs))
-
-function InverseFunctions.inverse(fc::FunctionChain)
-    inv_fs = map(inverse, _reverse(fc.fs))
-    if _contains_noinverse(inv_fs) isa Val{true}
-        NoInverse(fc)
-    else
-        FunctionChain(inv_fs)
-    end
-end
-
-InverseFunctions.inverse(f::FunctionChain{<:Base.Generator}) = NoInverse(f)
 
 
 _iterate_fs(::Nothing, fs, x) = throw(ArgumentError("Chain of functions must not be an empty iterable"))
@@ -137,28 +106,6 @@ end
 with_intermediate_results(fc::FunctionChain, x) = _iterate_fs_withintermediate(iterate(fc.fs), fc.fs, x)
 
 
-_iterate_fs_withladj(::Nothing, fs, x) = throw(ArgumentError("Chain of functions must not be an empty iterable"))
-
-function _iterate_fs_withladj((f1, itr_state), fs, x)
-    y_ladj = with_logabsdet_jacobian(f1, x)
-    y_ladj isa NoLogAbsDetJacobian && return NoLogAbsDetJacobian{FunctionChain{typeof(fs)},typeof(x)}()
-    y, ladj = y_ladj
-    next = iterate(fs, itr_state)
-    while !isnothing(next)
-        f_i, itr_state = next
-        y_ladj_i = with_logabsdet_jacobian(f_i, y)
-        y_ladj_i isa NoLogAbsDetJacobian && return NoLogAbsDetJacobian{FunctionChain{typeof(fs)},typeof(x)}()
-        y, ladj_i = y_ladj_i
-        ladj += ladj_i
-        next = iterate(fs, itr_state)
-    end
-    return y, ladj
-end
-
-ChangesOfVariables.with_logabsdet_jacobian(fc::FunctionChain, x) = _iterate_fs_withladj(iterate(fc.fs), fc.fs, x)
-
-
-
 function _tuple_fc_exprs(::Type{<:FunctionChain{FS}}) where {FS<:Tuple}
     expr = Expr(:block)
     y_0 = Symbol(:y, 0)
@@ -192,32 +139,6 @@ end
     push!(expr.args, :(($([Symbol(:y, i) for i in eachindex(FS.parameters)]...),)))
     return expr
 end
-
-
-@inline ChangesOfVariables.with_logabsdet_jacobian(::FunctionChain{Tuple{}}, x) = with_logabsdet_jacobian(identity, x)
-
-@inline ChangesOfVariables.with_logabsdet_jacobian(fc::FunctionChain{Tuple{F}}, x) where F = with_logabsdet_jacobian(fc.fs[1], x)
-
-@generated function ChangesOfVariables.with_logabsdet_jacobian(fc::FunctionChain{FS}, x) where {FS<:Tuple}
-    expr = Expr(:block)
-    sym_y, sym_ladj, sym_y_ladj, sym_tmp_ladj = gensym(:y), gensym(:ladj), gensym(:y_ladj), gensym(:tmp_ladj)
-    push!(expr.args, :($sym_y_ladj = with_logabsdet_jacobian(fc.fs[1], x)))
-    push!(expr.args, :($sym_y_ladj isa NoLogAbsDetJacobian && return NoLogAbsDetJacobian{typeof(fc),typeof(x)}()))
-    push!(expr.args, :(($sym_y, $sym_ladj) = $sym_y_ladj))
-    sym_last_y, sym_last_ladj = sym_y, sym_ladj
-    for i = 2:length(FS.parameters)
-        sym_y, sym_ladj, sym_y_ladj, sym_tmp_ladj = gensym(:y), gensym(:ladj), gensym(:y_ladj), gensym(:tmp_ladj)
-        push!(expr.args, :($sym_y_ladj = with_logabsdet_jacobian(fc.fs[$i], $sym_last_y)))
-        push!(expr.args, :($sym_y_ladj isa NoLogAbsDetJacobian && return NoLogAbsDetJacobian{typeof(fc),typeof(x)}()))
-        push!(expr.args, :(($sym_y, $sym_tmp_ladj) = $sym_y_ladj))
-        push!(expr.args, :($sym_ladj = $sym_tmp_ladj + $sym_last_ladj))
-        sym_last_y, sym_last_ladj = sym_y, sym_ladj
-    end
-    push!(expr.args, :(return ($sym_y, $sym_ladj)))
-
-    return expr
-end
-
 
 
 """

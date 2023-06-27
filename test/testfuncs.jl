@@ -4,6 +4,12 @@ import LinearAlgebra, Random
 import InverseFunctions, ChangesOfVariables
 
 
+struct MulCallable{T}
+    a::T
+end
+(f::MulCallable)(x, y = 3.1; k::Real = 0) = (f.a * x + y)^k
+
+
 struct LeapfrogIntegrator{AF,T}
     A::AF
     Δt::T

@@ -10,6 +10,7 @@ module FunctionChains
 using Tricks: static_hasmethod
 
 include("utils.jl")
+include("as_function.jl")
 include("function_chain.jl")
 
 @static if !isdefined(Base, :get_extension)

@@ -13,23 +13,11 @@ export with_intermediate_results
 with_intermediate_results(f, x) = (f(x),)
 
 
-struct _AsFunction{F} <: Function
-    f::F
-end
-
-Base.:(==)(a::_AsFunction, b::_AsFunction) = a.f == b.f
-Base.isapprox(a::_AsFunction, b::_AsFunction; kwargs...) = isapprox(a.f, b.f; kwargs...)
-
-@inline (ff::_AsFunction{F})(xs...) where F = ff.f(xs...)
-
-@inline _typed_func(f) = f
-@inline _typed_func(f::Type{T}) where T = _AsFunction{Type{T}}(f)::_AsFunction{Type{T}}
-
 @inline @generated function _typed_funcs_tuple(fs::Vararg{Any,N}) where N
     expr = Expr(:tuple)
     for i in 1:N
         if fs[i] <: Type
-            push!(expr.args, :(_AsFunction{$(fs[i])}(fs[$i])))
+            push!(expr.args, :(AsFunction{$(fs[i])}(fs[$i])))
         # Future option (breaking) - flatten FunctionChains:
         # elseif fs[i] <: FunctionChain{<:Tuple}
         #    push!(expr.args, :(fs[$i].fs...))
@@ -91,14 +79,14 @@ Base.show(io::IO, fc::FunctionChain) = show(io, MIME"text/plain"(), fc)
 
 convert(::Type{FunctionChain}, f::ComposedFunction) = ComposedFunction(_flatten_composed(f))
 
-@inline _flatten_composed(f::F) where {F} = (_typed_func(f),)
+@inline _flatten_composed(f::F) where {F} = (typed_callable(f),)
 @inline _flatten_composed(f::F) where {F<:ComposedFunction} = _typed_funcs_tuple(_flatten_composed(f.inner)..., _flatten_composed(f.outer)...)
 
 @inline Base.:(∘)(f::FunctionChain, g::FunctionChain) = _compose_fc_fc(f, g)
 @inline Base.:(∘)(f::FunctionChain, g::ComposedFunction) = _compose_fc_fc(f, FunctionChain(_flatten_composed(g)))
 @inline Base.:(∘)(f::ComposedFunction, g::FunctionChain) = _compose_fc_fc(FunctionChain(_flatten_composed(f)), g)
-@inline Base.:(∘)(f::FunctionChain, g) = _compose_fc_sf(f, _typed_func(g))
-@inline Base.:(∘)(f, g::FunctionChain) = _compose_sf_fc(_typed_func(f), g)
+@inline Base.:(∘)(f::FunctionChain, g) = _compose_fc_sf(f, typed_callable(g))
+@inline Base.:(∘)(f, g::FunctionChain) = _compose_sf_fc(typed_callable(f), g)
 @inline Base.:(∘)(f::FunctionChain, ::typeof(identity)) = f
 @inline Base.:(∘)(::typeof(identity), g::FunctionChain) = g
 

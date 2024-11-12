@@ -112,6 +112,8 @@ include("testfuncs.jl")
         end
         @test @inferred(Adapt.adapt(Array{Float32}, f)(rand(Float32, 3))) isa Vector{Float32}
 
+        params, f_ctor = @inferred Functors.functor(f)
+        @test @inferred(f_ctor(params)) == f
         @test Functors.fmap(Array{Float32}, f) ≈ f
         @test @inferred(Functors.fmap(Array{Float32}, f)(rand(Float32, 3))) isa Vector{Float32}
     end

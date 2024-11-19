@@ -179,6 +179,7 @@ end
 """
     fchain()
     fchain(fs)
+    fchain(fs...)
 
 Construct a function chain of functions `fs`.
 

@@ -15,6 +15,7 @@ using InverseFunctions: inverse, NoInverse
 include("utils.jl")
 include("as_function.jl")
 include("fchain.jl")
+include("fcomp.jl")
 include("frepeat.jl")
 
 end # module

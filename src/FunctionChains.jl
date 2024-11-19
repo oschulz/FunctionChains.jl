@@ -11,6 +11,6 @@ using Tricks: static_hasmethod
 
 include("utils.jl")
 include("as_function.jl")
-include("function_chain.jl")
+include("fchain.jl")
 
 end # module

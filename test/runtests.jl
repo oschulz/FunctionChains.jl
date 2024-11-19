@@ -4,6 +4,6 @@ import Test
 
 Test.@testset "Package FunctionChains" begin
     # include("test_aqua.jl")
-    include("test_function_chain.jl")
+    include("test_fchain.jl")
     include("test_docs.jl")
 end # testset

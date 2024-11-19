@@ -3,15 +3,14 @@ uuid = "8e6b2b91-af83-483e-ba35-d00930e4cf9b"
 version = "0.1.5"
 
 [deps]
-Functors = "d9f16b24-f501-4c13-a1f2-28368ffc5196"
 Tricks = "410a4b4d-49e4-4fbc-ab6d-cb71b17b3775"
+InverseFunctions = "3587e190-3f89-42d0-90ee-14403ec27112"
 
 [weakdeps]
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 ChangesOfVariables = "9e997f8a-9a97-42d5-a9f1-ce6bfc15e2c0"
 FlexiMaps = "6394faf6-06db-4fa8-b750-35ccc60383f7"
 Functors = "d9f16b24-f501-4c13-a1f2-28368ffc5196"
-InverseFunctions = "3587e190-3f89-42d0-90ee-14403ec27112"
 
 [extensions]
 FunctionChainsAdaptExt = "Adapt"

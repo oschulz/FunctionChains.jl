@@ -9,6 +9,9 @@ module FunctionChains
 
 using Tricks: static_hasmethod
 
+import InverseFunctions
+using InverseFunctions: inverse, NoInverse
+
 include("utils.jl")
 include("as_function.jl")
 include("fchain.jl")

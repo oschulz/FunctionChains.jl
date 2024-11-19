@@ -232,4 +232,9 @@ function InverseFunctions.inverse(fc::FunctionChain)
     end
 end
 
-InverseFunctions.inverse(f::FunctionChain{<:Base.Generator}) = NoInverse(f)
+function InverseFunctions.inverse(fc::FunctionChain{<:Iterators.Take{<:Iterators.Repeated}})
+    fs = fc.fs
+    return fchain(Iterators.repeated(inverse(fs.xs.x), fs.n))
+end
+
+InverseFunctions.inverse(fc::FunctionChain{<:Base.Generator}) = NoInverse(fc)

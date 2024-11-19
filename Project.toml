@@ -17,7 +17,6 @@ FunctionChainsAdaptExt = "Adapt"
 FunctionChainsChangesOfVariablesExt = "ChangesOfVariables"
 FunctionChainsFlexiMapsExt = "FlexiMaps"
 FunctionChainsFunctorsExt = "Functors"
-FunctionChainsInverseFunctionsExt = "InverseFunctions"
 
 [compat]
 Adapt = "1, 2, 3, 4"

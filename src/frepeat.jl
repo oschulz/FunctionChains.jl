@@ -7,6 +7,9 @@
 Create a chain of function `f` repeated `n` times.
 
 See also [`∘̂(f, n)`](@ref) for a version that supports `n <= 0`.
+
+The resulting function chain supports `InverseFunctions.inverse` and/or
+`ChangesOfVariables.with_logabsdet_jacobian` if `f` does so.
 """
 frepeat(f, n::Integer) = fchain(Iterators.repeated(f, n))
 export frepeat

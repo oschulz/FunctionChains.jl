@@ -5,7 +5,7 @@ module FunctionChainsFlexiMapsExt
 using FlexiMaps
 using FunctionChains
 
-FlexiMaps.islinear(fc::FunctionChain) = all(FlexiMaps.islinear, fc.fs)
-FlexiMaps.isaffine(fc::FunctionChain) = all(FlexiMaps.isaffine, fc.fs)
+FlexiMaps.islinear(fc::FunctionChain) = all(FlexiMaps.islinear, fchainfs(fc))
+FlexiMaps.isaffine(fc::FunctionChain) = all(FlexiMaps.isaffine, fchainfs(fc))
 
 end # module FunctionChainsFlexiMapsExt

@@ -25,23 +25,23 @@ function _iterate_fs_withladj((f1, itr_state), fs, x)
 end
 
 
-ChangesOfVariables.with_logabsdet_jacobian(fc::FunctionChain, x) = _iterate_fs_withladj(iterate(fc.fs), fc.fs, x)
+ChangesOfVariables.with_logabsdet_jacobian(fc::FunctionChain, x) = _iterate_fs_withladj(iterate(fchainfs(fc)), fchainfs(fc), x)
 
 
 @inline ChangesOfVariables.with_logabsdet_jacobian(::FunctionChain{Tuple{}}, x) = with_logabsdet_jacobian(identity, x)
 
-@inline ChangesOfVariables.with_logabsdet_jacobian(fc::FunctionChain{Tuple{F}}, x) where F = with_logabsdet_jacobian(fc.fs[1], x)
+@inline ChangesOfVariables.with_logabsdet_jacobian(fc::FunctionChain{Tuple{F}}, x) where F = with_logabsdet_jacobian(fchainfs(fc)[1], x)
 
 @generated function ChangesOfVariables.with_logabsdet_jacobian(fc::FunctionChain{FS}, x) where {FS<:Tuple}
     expr = Expr(:block)
     sym_y, sym_ladj, sym_y_ladj, sym_tmp_ladj = gensym(:y), gensym(:ladj), gensym(:y_ladj), gensym(:tmp_ladj)
-    push!(expr.args, :($sym_y_ladj = with_logabsdet_jacobian(fc.fs[1], x)))
+    push!(expr.args, :($sym_y_ladj = with_logabsdet_jacobian(fchainfs(fc)[1], x)))
     push!(expr.args, :($sym_y_ladj isa NoLogAbsDetJacobian && return NoLogAbsDetJacobian{typeof(fc),typeof(x)}()))
     push!(expr.args, :(($sym_y, $sym_ladj) = $sym_y_ladj))
     sym_last_y, sym_last_ladj = sym_y, sym_ladj
     for i = 2:length(FS.parameters)
         sym_y, sym_ladj, sym_y_ladj, sym_tmp_ladj = gensym(:y), gensym(:ladj), gensym(:y_ladj), gensym(:tmp_ladj)
-        push!(expr.args, :($sym_y_ladj = with_logabsdet_jacobian(fc.fs[$i], $sym_last_y)))
+        push!(expr.args, :($sym_y_ladj = with_logabsdet_jacobian(fchainfs(fc)[$i], $sym_last_y)))
         push!(expr.args, :($sym_y_ladj isa NoLogAbsDetJacobian && return NoLogAbsDetJacobian{typeof(fc),typeof(x)}()))
         push!(expr.args, :(($sym_y, $sym_tmp_ladj) = $sym_y_ladj))
         push!(expr.args, :($sym_ladj = $sym_tmp_ladj + $sym_last_ladj))

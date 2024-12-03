@@ -2,6 +2,21 @@
 
 
 """
+    fchainfs(fc)
+
+Get the component functions of a function chain or composed function `fc`, in
+order of function execution.
+
+See [`fchain`](@ref) for details.
+"""
+function fchainfs end
+export fchainfs
+
+@inline fchainfs(f::F) where {F} = (typed_callable(f),)
+@inline fchainfs(f::F) where {F<:ComposedFunction} = _typed_funcs_tuple(fchainfs(f.inner)..., fchainfs(f.outer)...)
+
+
+"""
     with_intermediate_results(f, x)
 
 Apply multi-step function `f` to `x` and return a collection that contains
@@ -20,7 +35,7 @@ with_intermediate_results(f, x) = (f(x),)
             push!(expr.args, :(AsFunction{$(fs[i])}(fs[$i])))
         # Future option (breaking) - flatten FunctionChains:
         # elseif fs[i] <: FunctionChain{<:Tuple}
-        #    push!(expr.args, :(fs[$i].fs...))
+        #    push!(expr.args, :(fs[$i]._fs...))
         else
             # Future option (breaking) - remove identities:
             #if !(fs[i] <: typeof(identity))
@@ -37,23 +52,26 @@ end
 
 Represents a chain of composed functions.
 
-A `FunctionChain` has a single field `fs` which may be a tuple, array or
-generator/iterator of functions.
-
 `(fc::FunctionChain)(x)` applies the functions in the chain in order of
-iteration over `fc.fs`.
+iteration over `fc._fs`.
 
 Use [`fchain`](@ref) to construct function chains instead of using the
 constructor `FunctionChain(fs)` directly.
+
+Use [`fchainfs(fc)`](@ref) to retrieve the components of a
+`FunctionChain` in order of function execution.
 """
 struct FunctionChain{FS} <: Function
-    fs::FS
+    _fs::FS
 end
 export FunctionChain
 
 
-Base.:(==)(a::FunctionChain, b::FunctionChain) = a.fs == b.fs
-Base.isapprox(a::FunctionChain, b::FunctionChain; kwargs...) = _isapprox(a.fs, b.fs; kwargs...)
+fchainfs(fc::FunctionChain) = getfield(fc, :_fs)
+
+
+Base.:(==)(a::FunctionChain, b::FunctionChain) = a._fs == b._fs
+Base.isapprox(a::FunctionChain, b::FunctionChain; kwargs...) = _isapprox(a._fs, b._fs; kwargs...)
 
 _isapprox(a, b; kwargs...) = isapprox(a, b; kwargs...)
 _isapprox(a::Tuple{Vararg{Any,N}}, b::Tuple{Vararg{Any,N}}; kwargs...) where N = all(map((a, b) ->_isapprox(a, b; kwargs...), a, b))
@@ -61,44 +79,41 @@ _isapprox(a::Tuple{Vararg{Any,N}}, b::Tuple{Vararg{Any,N}}; kwargs...) where N =
 
 function Base.show(io::IO, m::MIME"text/plain", fc::FunctionChain)
     print(io, "fchain(")
-    show(io, m, fc.fs)
+    show(io, m, fc._fs)
     print(io, ")")
 end
 
 function Base.show(io::IO, m::MIME"text/plain", fc::FunctionChain{<:Tuple})
     print(io, "fchain")
-    show(io, m, fc.fs)
+    show(io, m, fc._fs)
 end
 
 Base.show(io::IO, fc::FunctionChain) = show(io, MIME"text/plain"(), fc)
 
-Base.length(fc::FunctionChain) = length(fc.fs)
+Base.length(fc::FunctionChain) = length(fc._fs)
 
 # Enables `(fc...,)` and `[fc...]`
-Base.iterate(fc::FunctionChain) = iterate(fc.fs)
-Base.iterate(fc::FunctionChain, state) = iterate(fc.fs, state)
+Base.iterate(fc::FunctionChain) = iterate(fc._fs)
+Base.iterate(fc::FunctionChain, state) = iterate(fc._fs, state)
 
 # Enables `(; fc...)`
-Base.merge(a::NamedTuple, fc::FunctionChain{<:NamedTuple{names}}) where {names} = merge(a, fc.fs)
+Base.merge(a::NamedTuple, fc::FunctionChain{<:NamedTuple{names}}) where {names} = merge(a, fc._fs)
 
-convert(::Type{FunctionChain}, f::ComposedFunction) = ComposedFunction(_flatten_composed(f))
-
-@inline _flatten_composed(f::F) where {F} = (typed_callable(f),)
-@inline _flatten_composed(f::F) where {F<:ComposedFunction} = _typed_funcs_tuple(_flatten_composed(f.inner)..., _flatten_composed(f.outer)...)
+convert(::Type{FunctionChain}, f::ComposedFunction) = ComposedFunction(fchainfs(f))
 
 @inline Base.:(∘)(f::FunctionChain, g::FunctionChain) = _compose_fc_fc(f, g)
-@inline Base.:(∘)(f::FunctionChain, g::ComposedFunction) = _compose_fc_fc(f, FunctionChain(_flatten_composed(g)))
-@inline Base.:(∘)(f::ComposedFunction, g::FunctionChain) = _compose_fc_fc(FunctionChain(_flatten_composed(f)), g)
+@inline Base.:(∘)(f::FunctionChain, g::ComposedFunction) = _compose_fc_fc(f, FunctionChain(fchainfs(g)))
+@inline Base.:(∘)(f::ComposedFunction, g::FunctionChain) = _compose_fc_fc(FunctionChain(fchainfs(f)), g)
 @inline Base.:(∘)(f::FunctionChain, g) = _compose_fc_sf(f, typed_callable(g))
 @inline Base.:(∘)(f, g::FunctionChain) = _compose_sf_fc(typed_callable(f), g)
 @inline Base.:(∘)(f::FunctionChain, ::typeof(identity)) = f
 @inline Base.:(∘)(::typeof(identity), g::FunctionChain) = g
 
 @inline _compose_fc_fc(f::FunctionChain, g::FunctionChain) = FunctionChain((g, f))
-@inline _compose_fc_fc(f::FunctionChain{<:Tuple}, g::FunctionChain) = FunctionChain((g, f.fs...))
-@inline _compose_fc_fc(f::FunctionChain, g::FunctionChain{<:Tuple}) = FunctionChain((g.fs..., f))
-@inline _compose_fc_fc(f::FunctionChain{<:Tuple}, g::FunctionChain{<:Tuple}) = FunctionChain((g.fs..., f.fs...))
-@inline _compose_fc_fc(f::FunctionChain{<:AbstractVector{F}}, g::FunctionChain{<:AbstractVector{F}}) where F = FunctionChain(vcat(g.fs, f.fs))
+@inline _compose_fc_fc(f::FunctionChain{<:Tuple}, g::FunctionChain) = FunctionChain((g, f._fs...))
+@inline _compose_fc_fc(f::FunctionChain, g::FunctionChain{<:Tuple}) = FunctionChain((g._fs..., f))
+@inline _compose_fc_fc(f::FunctionChain{<:Tuple}, g::FunctionChain{<:Tuple}) = FunctionChain((g._fs..., f._fs...))
+@inline _compose_fc_fc(f::FunctionChain{<:AbstractVector{F}}, g::FunctionChain{<:AbstractVector{F}}) where F = FunctionChain(vcat(g._fs, f._fs))
 
 @inline function _compose_fc_fc(
     f::FunctionChain{<:NamedTuple{names_f}}, g::FunctionChain{<:NamedTuple{names_g}}
@@ -116,12 +131,12 @@ end
 
 
 @inline _compose_fc_sf(f::FunctionChain, g) = FunctionChain((g, f))
-@inline _compose_fc_sf(f::FunctionChain{<:Tuple}, g) = FunctionChain((g, f.fs...))
-@inline _compose_fc_sf(f::FunctionChain{<:AbstractVector{F}}, g::F) where F = FunctionChain(pushfirst!(copy(f.fs), g))
+@inline _compose_fc_sf(f::FunctionChain{<:Tuple}, g) = FunctionChain((g, f._fs...))
+@inline _compose_fc_sf(f::FunctionChain{<:AbstractVector{F}}, g::F) where F = FunctionChain(pushfirst!(copy(f._fs), g))
 
 @inline _compose_sf_fc(f, g::FunctionChain) = FunctionChain((g, f))
-@inline _compose_sf_fc(f, g::FunctionChain{<:Tuple}) = FunctionChain((g.fs..., f))
-@inline _compose_sf_fc(f::F, g::FunctionChain{<:AbstractVector{F}}) where F = FunctionChain(push!(copy(g.fs), f))
+@inline _compose_sf_fc(f, g::FunctionChain{<:Tuple}) = FunctionChain((g._fs..., f))
+@inline _compose_sf_fc(f::F, g::FunctionChain{<:AbstractVector{F}}) where F = FunctionChain(push!(copy(g._fs), f))
 
 
 _iterate_fs(::Nothing, fs, x) = throw(ArgumentError("Chain of functions must not be an empty iterable"))
@@ -137,7 +152,7 @@ function _iterate_fs((f1, itr_state), fs, x)
     return y
 end
 
-(fc::FunctionChain)(x) = _iterate_fs(iterate(fc.fs), fc.fs, x)
+(fc::FunctionChain)(x) = _iterate_fs(iterate(fc._fs), fc._fs, x)
 
 _iterate_fs_withintermediate(::Nothing, fs, x::T) where T = throw(ArgumentError("Chain of functions must not be an empty iterable"))
 
@@ -157,7 +172,7 @@ function _iterate_fs_withintermediate((f1, itr_state), fs, x)
     return ys
 end
 
-with_intermediate_results(fc::FunctionChain, x) = _iterate_fs_withintermediate(iterate(fc.fs), fc.fs, x)
+with_intermediate_results(fc::FunctionChain, x) = _iterate_fs_withintermediate(iterate(fc._fs), fc._fs, x)
 
 
 function _tuple_fc_exprs(::Type{FS}) where {FS<:Tuple}
@@ -175,11 +190,11 @@ end
 
 @inline (fc::FunctionChain{Tuple{}})(x) = x
 
-@inline (fc::FunctionChain{Tuple{F}})(x) where F = fc.fs[1](x)
+@inline (fc::FunctionChain{Tuple{F}})(x) where F = fc._fs[1](x)
 
-@inline (fc::FunctionChain{FS})(x) where {FS<:Tuple} = _tuple_fc_apply(fc.fs, x)
+@inline (fc::FunctionChain{FS})(x) where {FS<:Tuple} = _tuple_fc_apply(fc._fs, x)
 
-@inline (fc::FunctionChain{<:NamedTuple})(x) = _tuple_fc_apply(values(fc.fs), x)
+@inline (fc::FunctionChain{<:NamedTuple})(x) = _tuple_fc_apply(values(fc._fs), x)
 
 @generated function _tuple_fc_apply(fs::FS, x) where {FS<:Tuple}
     expr = _tuple_fc_exprs(fs)
@@ -190,12 +205,12 @@ end
 
 @inline with_intermediate_results(::FunctionChain{Tuple{}}, x) = ()
 
-@inline with_intermediate_results(fc::FunctionChain{Tuple{F}}, x) where F = (fc.fs[1](x),)
+@inline with_intermediate_results(fc::FunctionChain{Tuple{F}}, x) where F = (fc._fs[1](x),)
 
-@inline with_intermediate_results(fc::FunctionChain{FS}, x) where {FS<:Tuple} = _tuple_fc_with_apply_interm(fc.fs, x)
+@inline with_intermediate_results(fc::FunctionChain{FS}, x) where {FS<:Tuple} = _tuple_fc_with_apply_interm(fc._fs, x)
 
 @inline function with_intermediate_results(fc::FunctionChain{<:NamedTuple{names}}, x) where {names}
-    return NamedTuple{names}(_tuple_fc_with_apply_interm(values(fc.fs), x))
+    return NamedTuple{names}(_tuple_fc_with_apply_interm(values(fc._fs), x))
 end
 
 @generated function _tuple_fc_with_apply_interm(fs::FS, x) where {FS<:Tuple}
@@ -221,6 +236,8 @@ other function chain types for specific types of functions.
 The resulting function chain supports [`with_intermediate_results`](@ref), and
 also supports `InverseFunctions.inverse` and/or
 `ChangesOfVariables.with_logabsdet_jacobian` if all functions in the chain do so.
+
+Use [`fchainfs(fc)`](@ref) to retrieve `fs`.
 """
 function fchain end
 export fchain
@@ -268,7 +285,7 @@ _contains_noinverse(::AbstractArray{<:NoInverse}) = Val(true)
 _contains_noinverse(fs::AbstractArray{>:NoInverse}) = Val(any(_is_noinverse, fs))
 
 function InverseFunctions.inverse(fc::FunctionChain)
-    inv_fs = map(inverse, _reverse(fc.fs))
+    inv_fs = map(inverse, _reverse(fc._fs))
     if _contains_noinverse(inv_fs) isa Val{true}
         NoInverse(fc)
     else
@@ -277,7 +294,7 @@ function InverseFunctions.inverse(fc::FunctionChain)
 end
 
 function InverseFunctions.inverse(fc::FunctionChain{<:Iterators.Take{<:Iterators.Repeated}})
-    fs = fc.fs
+    fs = fc._fs
     return fchain(Iterators.repeated(inverse(fs.xs.x), fs.n))
 end
 

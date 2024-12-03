@@ -40,15 +40,11 @@ Represents a chain of composed functions.
 A `FunctionChain` has a single field `fs` which may be a tuple, array or
 generator/iterator of functions.
 
-`(chain::FunctionChain)(x)` applies the functions in the cain in order of
-iteration over `chain.fs`.
-```
+`(fc::FunctionChain)(x)` applies the functions in the chain in order of
+iteration over `fc.fs`.
 
-Supports [`with_intermediate_results`](@ref). Also supports
-`InverseFunctions.inverse` and/or `ChangesOfVariables.with_logabsdet_jacobian`
-if all functions in the chain do so.
-
-Use [`fchain`](@ref) to construct function chains instead of `FunctionChain(fs)`.
+Use [`fchain`](@ref) to construct function chains instead of using the
+constructor `FunctionChain(fs)` directly.
 """
 struct FunctionChain{FS} <: Function
     fs::FS
@@ -188,6 +184,10 @@ other function chain types for specific types of functions.
 
 `fs` must be iterable, it may be a tuple, vector, generator, etc.
 `fchain(fs)(x)` will apply the functions in `fs` in order of iteration.
+
+The resulting function chain supports [`with_intermediate_results`](@ref), and
+also supports `InverseFunctions.inverse` and/or
+`ChangesOfVariables.with_logabsdet_jacobian` if all functions in the chain do so.
 """
 function fchain end
 export fchain

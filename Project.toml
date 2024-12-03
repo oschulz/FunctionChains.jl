@@ -11,12 +11,14 @@ Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 ChangesOfVariables = "9e997f8a-9a97-42d5-a9f1-ce6bfc15e2c0"
 FlexiMaps = "6394faf6-06db-4fa8-b750-35ccc60383f7"
 Functors = "d9f16b24-f501-4c13-a1f2-28368ffc5196"
+StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
 
 [extensions]
 FunctionChainsAdaptExt = "Adapt"
 FunctionChainsChangesOfVariablesExt = "ChangesOfVariables"
 FunctionChainsFlexiMapsExt = "FlexiMaps"
 FunctionChainsFunctorsExt = "Functors"
+FunctionChainsStructArraysExt = "StructArrays"
 
 [compat]
 Adapt = "1, 2, 3, 4"
@@ -24,6 +26,7 @@ ChangesOfVariables = "0.1.3"
 FlexiMaps = "0.1"
 Functors = "0.2, 0.3, 0.4, 0.5"
 InverseFunctions = "0.1"
+StructArrays = "0.4, 0.5, 0.6, 0.7"
 Tricks = "0.1"
 julia = "1.10"
 

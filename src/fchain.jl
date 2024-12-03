@@ -72,6 +72,8 @@ end
 
 Base.show(io::IO, fc::FunctionChain) = show(io, MIME"text/plain"(), fc)
 
+# Enables `(; fc...)`
+Base.merge(a::NamedTuple, fc::FunctionChain{<:NamedTuple{names}}) where {names} = merge(a, fc.fs)
 
 convert(::Type{FunctionChain}, f::ComposedFunction) = ComposedFunction(_flatten_composed(f))
 
@@ -137,14 +139,14 @@ end
 with_intermediate_results(fc::FunctionChain, x) = _iterate_fs_withintermediate(iterate(fc.fs), fc.fs, x)
 
 
-function _tuple_fc_exprs(::Type{<:FunctionChain{FS}}) where {FS<:Tuple}
+function _tuple_fc_exprs(::Type{FS}) where {FS<:Tuple}
     expr = Expr(:block)
     y_0 = Symbol(:y, 0)
     push!(expr.args, :($y_0 = x))
     idxs = eachindex(FS.parameters)
     for i in idxs
         y_i, x_i = Symbol(:y, i), Symbol(:y, i-1)
-        push!(expr.args, :($y_i = fc.fs[$i]($x_i)))
+        push!(expr.args, :($y_i = fs[$i]($x_i)))
     end
     return expr
 end
@@ -154,8 +156,12 @@ end
 
 @inline (fc::FunctionChain{Tuple{F}})(x) where F = fc.fs[1](x)
 
-@generated function (fc::FunctionChain{FS})(x) where {FS<:Tuple}
-    expr = _tuple_fc_exprs(fc)
+@inline (fc::FunctionChain{FS})(x) where {FS<:Tuple} = _tuple_fc_apply(fc.fs, x)
+
+@inline (fc::FunctionChain{<:NamedTuple})(x) = _tuple_fc_apply(values(fc.fs), x)
+
+@generated function _tuple_fc_apply(fs::FS, x) where {FS<:Tuple}
+    expr = _tuple_fc_exprs(fs)
     push!(expr.args, Symbol(:y, last(eachindex(FS.parameters))))
     return expr
 end
@@ -165,8 +171,14 @@ end
 
 @inline with_intermediate_results(fc::FunctionChain{Tuple{F}}, x) where F = (fc.fs[1](x),)
 
-@generated function with_intermediate_results(fc::FunctionChain{FS}, x) where {FS<:Tuple}
-    expr = _tuple_fc_exprs(fc)
+@inline with_intermediate_results(fc::FunctionChain{FS}, x) where {FS<:Tuple} = _tuple_fc_with_apply_interm(fc.fs, x)
+
+@inline function with_intermediate_results(fc::FunctionChain{<:NamedTuple{names}}, x) where {names}
+    return NamedTuple{names}(_tuple_fc_with_apply_interm(values(fc.fs), x))
+end
+
+@generated function _tuple_fc_with_apply_interm(fs::FS, x) where {FS<:Tuple}
+    expr = _tuple_fc_exprs(fs)
     push!(expr.args, :(($([Symbol(:y, i) for i in eachindex(FS.parameters)]...),)))
     return expr
 end
@@ -192,7 +204,9 @@ also supports `InverseFunctions.inverse` and/or
 function fchain end
 export fchain
 
-@inline fchain() = FunctionChain(())
+@inline fchain(;fs...) = _fchain_vararg_impl(values(fs))
+@inline _fchain_vararg_impl(::NamedTuple{()}) = fchain(())
+@inline _fchain_vararg_impl(fs::NamedTuple) = fchain(fs)
 
 @inline fchain(fs::FS) where FS = _fchain_onearg(fs, Val(static_hasmethod(iterate, Tuple{FS})))
 _fchain_onearg(fs::FS, ::Val{true}) where FS = FunctionChain(fs)
@@ -201,11 +215,18 @@ _fchain_onearg(f::F, ::Val{false}) where F = FunctionChain(_typed_funcs_tuple(f)
 @inline fchain(fs::Tuple{Vararg{Function, N}}) where N = FunctionChain(fs)
 
 function fchain(fs::Tuple{Vararg{Any, N}}) where N
+    @info "DEBUG" typeof(fs)
     Base.depwarn("fchain(fs::Tuple) with fs elements not of type Function is deprecated due to possible type instabilities, use `fchain(fs...)` instead.", :fchain)
     fchain(fs...)
 end
 
 @inline fchain(fs::Vararg{Any,N}) where N = FunctionChain(_typed_funcs_tuple(fs...))
+
+@inline fchain(fs::NamedTuple{names,<:Tuple{Vararg{Function}}}) where names = FunctionChain(fs)
+
+function fchain(@nospecialize(fs::NamedTuple))
+    throw(ArgumentError("Do not use fchain(fs::NamedTuple) or fchain(;fs...) with fs elements not of type Function, due to type instability."))
+end
 
 
 # InverseFunctions support

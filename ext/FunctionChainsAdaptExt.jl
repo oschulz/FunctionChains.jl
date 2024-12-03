@@ -5,6 +5,8 @@ module FunctionChainsAdaptExt
 using Adapt
 using FunctionChains
 
-Adapt.adapt_structure(target, f::FunctionChain) = FunctionChain(map(Base.Fix1(Adapt.adapt, target), f.fs))
+function Adapt.adapt_structure(target::T, fc::FunctionChain) where T
+    FunctionChain(map(Base.Fix1(Adapt.adapt, target), fchainfs(fc)))
+end
 
 end # module FunctionChainsAdaptExt

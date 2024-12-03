@@ -20,27 +20,29 @@ include("testfuncs.jl")
 @testset "function_chain" begin
     function test_function_chain(fc, x, invertible::Bool, with_ladj::Bool, label::AbstractString)
         @testset "$label" begin
-            @test !any(x -> x isa ComposedFunction, fc.fs)
+            @test @inferred(fchainfs(fc)) === getfield(fc, :_fs)
 
-            @test length(fc) == length(fc.fs)
-            @test (fc...,) == (fc.fs...,)
-            @test [fc...] == [fc.fs...]
+            @test !any(x -> x isa ComposedFunction, fchainfs(fc))
 
-            cf = foldl(∘, reverse(collect(fc.fs)))
+            @test length(fc) == length(fchainfs(fc))
+            @test (fc...,) == (fchainfs(fc)...,)
+            @test [fc...] == [fchainfs(fc)...]
+
+            cf = foldl(∘, reverse(collect(fchainfs(fc))))
             @test @inferred(fc(x)) == cf(x)
 
             y_out = @inferred fc(x)
             ys_out = @inferred with_intermediate_results(fc, x)
 
-            ys_out_values = if fc.fs isa NamedTuple
-                @test propertynames(ys_out) == propertynames(fc.fs)
+            ys_out_values = if fchainfs(fc) isa NamedTuple
+                @test propertynames(ys_out) == propertynames(fchainfs(fc))
                 values(ys_out)
             else
                 ys_out
             end
         
             y_ref = x   
-            for (f_i, y_out_i) in zip(fc.fs, ys_out_values)
+            for (f_i, y_out_i) in zip(fchainfs(fc), ys_out_values)
                 y_ref = f_i(y_ref)
                 @test y_out_i == y_ref
             end
@@ -140,14 +142,14 @@ include("testfuncs.jl")
     f = fchain(Mul(3), Add(2), InvMul(2.5), Subtract(4))
     @test @inferred(f([1.1, 2.2])) == 2.5 \ (3 * [1.1, 2.2] .+ 2) .- 4
     test_function_chain(f, [1.1, 2.2], true, true, "Tuple of AffineMap")
-    @test @inferred(((fc)->(fc...,))(f)) == f.fs
+    @test @inferred(((fc)->(fc...,))(f)) == fchainfs(f)
 
     @test @inferred(fchain(a = Mul(3), c = Add(2), b = InvMul(2.5), z = Subtract(4))) isa FunctionChain
     f = fchain(a = Mul(3), c = Add(2), b = InvMul(2.5), z = Subtract(4))
     @test @inferred(f([1.1, 2.2])) == 2.5 \ (3 * [1.1, 2.2] .+ 2) .- 4
     test_function_chain(f, [1.1, 2.2], true, true, "NamedTuple of AffineMap")
-    @test @inferred(merge((;), f)) == f.fs
-    @test (; f...) == f.fs
+    @test @inferred(merge((;), f)) == fchainfs(f)
+    @test (; f...) == fchainfs(f)
 
     @test @inferred(fchain(Mul.(2:5))) isa FunctionChain{Vector{Mul{Int}}}
     f = fchain(Mul.(2:5))

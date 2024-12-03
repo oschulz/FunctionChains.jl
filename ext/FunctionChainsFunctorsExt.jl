@@ -13,6 +13,8 @@ Functors.@functor AsFunction
 
 Functors.@functor FunctionChain
 
+Functors.@functor FunctionProduct
+
 end # Functors < v"0.5"
 
 end # module FunctionChainsFunctorsExt

@@ -19,5 +19,7 @@ include("fbcast.jl")
 include("fchain.jl")
 include("fcomp.jl")
 include("frepeat.jl")
+include("fprod.jl")
+include("fbcast.jl")
 
 end # module

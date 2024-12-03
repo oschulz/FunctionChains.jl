@@ -14,5 +14,5 @@
 * [Documentation for development version](https://oschulz.github.io/FunctionChains.jl/dev)
 
 FunctionChains.jl is a Julia package that implements chained/composed
-functions with functionality beyond `Base.ComposedFunction`. See the
-documentation for details.
+functions with functionality beyond `Base.ComposedFunction`, as well as some
+other ways of combining functions. See the documentation for details.

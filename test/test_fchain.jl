@@ -18,8 +18,6 @@ include("getjacobian.jl")
 include("testfuncs.jl")
 
 @testset "function_chain" begin
-    bcf(f) = Base.Broadcast.BroadcastFunction(f)
-
     function test_function_chain(fc, x, invertible::Bool, with_ladj::Bool, label::AbstractString)
         @testset "$label" begin
             @test !any(x -> x isa ComposedFunction, fc.fs)
@@ -65,8 +63,8 @@ include("testfuncs.jl")
         @test @inferred(fchain([log, exp])) isa FunctionChain
         @test @inferred(fchain(log, ForwardDiff.Dual)) isa FunctionChain
         @test @inferred(fchain(log, AbstractFloat)) isa FunctionChain
-        @test @inferred(fchain(ForwardDiff.Dual, bcf(log))) isa FunctionChain
-        @test @inferred(fchain(AbstractFloat, bcf(log))) isa FunctionChain
+        @test @inferred(fchain(ForwardDiff.Dual, fbcast(log))) isa FunctionChain
+        @test @inferred(fchain(AbstractFloat, fbcast(log))) isa FunctionChain
         @test @inferred(fchain((Mul(i) for i in 3:4))) isa FunctionChain
 
         # Not inferrable:

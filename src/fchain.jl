@@ -100,6 +100,21 @@ convert(::Type{FunctionChain}, f::ComposedFunction) = ComposedFunction(_flatten_
 @inline _compose_fc_fc(f::FunctionChain{<:Tuple}, g::FunctionChain{<:Tuple}) = FunctionChain((g.fs..., f.fs...))
 @inline _compose_fc_fc(f::FunctionChain{<:AbstractVector{F}}, g::FunctionChain{<:AbstractVector{F}}) where F = FunctionChain(vcat(g.fs, f.fs))
 
+@inline function _compose_fc_fc(
+    f::FunctionChain{<:NamedTuple{names_f}}, g::FunctionChain{<:NamedTuple{names_g}}
+) where {names_f, names_g}
+    _compose_fc_fc_nt(f, g, _no_names_overlap(Val(names_f), Val(names_g)))
+end
+
+@inline @generated function _no_names_overlap(::Val{names_a}, ::Val{names_b}) where {names_a, names_b}
+    all_names = sort([names_a..., names_b...])
+    length(unique(all_names)) == length(all_names) ? :(Val(true)) : :(Val(false))
+end
+
+@inline _compose_fc_fc_nt(f, g, ::Val{true}) = FunctionChain((; g._fs..., f._fs...))
+@inline _compose_fc_fc_nt(f, g, ::Val{false}) = FunctionChain((g, f))
+
+
 @inline _compose_fc_sf(f::FunctionChain, g) = FunctionChain((g, f))
 @inline _compose_fc_sf(f::FunctionChain{<:Tuple}, g) = FunctionChain((g, f.fs...))
 @inline _compose_fc_sf(f::FunctionChain{<:AbstractVector{F}}, g::F) where F = FunctionChain(pushfirst!(copy(f.fs), g))

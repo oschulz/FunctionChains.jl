@@ -115,6 +115,9 @@ include("testfuncs.jl")
         @test @inferred(Mul(3) ∘ fchain(Mul(1), Mul(2))) == FunctionChain((Mul(1), Mul(2), Mul(3)))
         @test @inferred(fchain([Mul(1), Mul(2)]) ∘ Mul(3)) == FunctionChain([Mul(3), Mul(1), Mul(2)])
         @test @inferred(Mul(3) ∘ fchain([Mul(1), Mul(2)])) == FunctionChain([Mul(1), Mul(2), Mul(3)])
+
+        @test @inferred(fchain(a = sin, x = cos, c = tan) ∘ fchain(e = log, d = exp)) == FunctionChain((e = log, d = exp, a = sin, x = cos, c = tan))
+        @test @inferred(fchain(a = sin, x = cos, c = tan) ∘ fchain(e = log, x = exp)) == FunctionChain((FunctionChain((e = log, x = exp)), FunctionChain((a = sin, x = cos, c = tan))))
     end
 
     let f = fchain(Mul(rand(3,3)), Add(rand(3)), Mul(rand(3,3)))

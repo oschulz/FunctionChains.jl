@@ -27,9 +27,16 @@ include("testfuncs.jl")
 
             y_out = @inferred fc(x)
             ys_out = @inferred with_intermediate_results(fc, x)
+
+            ys_out_values = if fc.fs isa NamedTuple
+                @test propertynames(ys_out) == propertynames(fc.fs)
+                values(ys_out)
+            else
+                ys_out
+            end
         
             y_ref = x   
-            for (f_i, y_out_i) in zip(fc.fs, ys_out)
+            for (f_i, y_out_i) in zip(fc.fs, ys_out_values)
                 y_ref = f_i(y_ref)
                 @test y_out_i == y_ref
             end
@@ -60,12 +67,18 @@ include("testfuncs.jl")
         @test @inferred(fchain(exp)) isa FunctionChain
         @test @inferred(fchain(log, exp)) isa FunctionChain
         @test @inferred(fchain((log, exp))) isa FunctionChain
+        @test @inferred(fchain(a = log, c = exp)) isa FunctionChain
+        @test @inferred(fchain((a = log, c = exp))) isa FunctionChain
         @test @inferred(fchain([log, exp])) isa FunctionChain
         @test @inferred(fchain(log, ForwardDiff.Dual)) isa FunctionChain
         @test @inferred(fchain(log, AbstractFloat)) isa FunctionChain
         @test @inferred(fchain(ForwardDiff.Dual, fbcast(log))) isa FunctionChain
         @test @inferred(fchain(AbstractFloat, fbcast(log))) isa FunctionChain
         @test @inferred(fchain((Mul(i) for i in 3:4))) isa FunctionChain
+
+        @test_deprecated fchain((log, AbstractFloat)) isa FunctionChain
+        @test_throws ArgumentError fchain(a = log, c = AbstractFloat)
+        @test_throws ArgumentError fchain((a = log, c = AbstractFloat))
 
         # Not inferrable:
         @test_deprecated fchain((log, ForwardDiff.Dual)) isa FunctionChain
@@ -120,6 +133,13 @@ include("testfuncs.jl")
     f = fchain(Mul(3), Add(2), InvMul(2.5), Subtract(4))
     @test @inferred(f([1.1, 2.2])) == 2.5 \ (3 * [1.1, 2.2] .+ 2) .- 4
     test_function_chain(f, [1.1, 2.2], true, true, "Tuple of AffineMap")
+
+    @test @inferred(fchain(a = Mul(3), c = Add(2), b = InvMul(2.5), z = Subtract(4))) isa FunctionChain
+    f = fchain(a = Mul(3), c = Add(2), b = InvMul(2.5), z = Subtract(4))
+    @test @inferred(f([1.1, 2.2])) == 2.5 \ (3 * [1.1, 2.2] .+ 2) .- 4
+    test_function_chain(f, [1.1, 2.2], true, true, "NamedTuple of AffineMap")
+    @test @inferred(merge((;), f)) == f.fs
+    @test (; f...) == f.fs
 
     @test @inferred(fchain(Mul.(2:5))) isa FunctionChain{Vector{Mul{Int}}}
     f = fchain(Mul.(2:5))

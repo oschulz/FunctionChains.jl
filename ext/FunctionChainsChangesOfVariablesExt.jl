@@ -3,12 +3,18 @@
 module FunctionChainsChangesOfVariablesExt
 
 using ChangesOfVariables
+using ChangesOfVariables: with_logabsdet_jacobian
 using FunctionChains
 
 using FunctionChains: _BCastedFC
+using FunctionChains: _check_fp_sizes
+
+using Base: IteratorSize, HasShape, HasLength
+
+
+# FunctionChain ==============================================================
 
 @inline ChangesOfVariables.with_logabsdet_jacobian(fc::FunctionChain, x) = _withladj_fc(fc, x)
-
 
 _iterate_fs_withladj(::Nothing, fs, x, f_wrap) = throw(ArgumentError("Chain of functions must not be an empty iterable"))
 
@@ -90,6 +96,90 @@ function _withladj_fc_fs_tpl_expr(n::Integer; f_wrap::Union{Symbol,Expr} = :iden
         return expr
     end
 end
+
+
+
+# FCartProd ==============================================================
+
+
+_is_noladj(r) = r isa NoLogAbsDetJacobian
+_contains_noladj(r::NoLogAbsDetJacobian) = Val(true)
+_contains_noladj(r) = Val(any(_is_noladj, r))
+@generated function _contains_noladj(r::Tuple)
+    result = any(x -> x <: NoLogAbsDetJacobian, r.parameters)
+    :(Val($result))
+end
+_contains_noladj(r::NamedTuple) = _contains_noladj(values(r))
+_contains_noladj(::AbstractArray) = Val(false)
+_contains_noladj(::AbstractArray{<:NoLogAbsDetJacobian}) = Val(true)
+_contains_noladj(r::AbstractArray{>:NoLogAbsDetJacobian}) = Val(any(_is_noladj, r))
+
+
+# Partially from ChangesOfVariables.jl, modified/improved:
+
+@inline _sum_ladjs(@Base.nospecialize(F::Type), @Base.nospecialize(T::Type), ys_with_ladjs::Tuple{Any,Real}) = ys_with_ladjs
+@inline _sum_ladjs(::Type{F}, ::Type{T}, ::NoLogAbsDetJacobian) where {F,T} = NoLogAbsDetJacobian{F,T}()
+
+_get_all_first(x) = map(first, x)
+# Use x -> x[2] instead of last, using last causes horrible performance in Zygote here:
+_sum_over_second(x) = sum(x -> x[2], x)
+
+function _sum_ladjs(::Type{F}, ::Type{T}, ys_with_ladjs) where {F,T}
+    if _contains_noladj(ys_with_ladjs) isa Val{true}
+        return NoLogAbsDetJacobian{F,T}()
+    else
+        return _sum_ladjs_impl(ys_with_ladjs)
+    end
+end
+
+function _sum_ladjs_impl(ys_with_ladjs)
+    y = _get_all_first(ys_with_ladjs)
+    ladj = _sum_over_second(ys_with_ladjs)
+    return (y, ladj)
+end
+
+
+# Implementation of with_logabsdet_jacobian on FCartProd:
+
+function ChangesOfVariables.with_logabsdet_jacobian(fp::FCartProd{<:Tuple{Vararg{Any,N}}}, x::Tuple{Vararg{Any,N}}) where N
+    return _sum_ladjs(typeof(fp), typeof(x), map(with_logabsdet_jacobian, fp._fs, x))
+end
+
+function ChangesOfVariables.with_logabsdet_jacobian(::FCartProd{<:Tuple{Vararg{typeof(identity),N}}}, x::Tuple{Vararg{Any,N}}) where N
+    return with_logabsdet_jacobian(identity, x)
+end
+
+function ChangesOfVariables.with_logabsdet_jacobian(@nospecialize(fs::FCartProd{<:Tuple}), @nospecialize(x::Tuple))
+    throw(ArgumentError("Can't apply FCartProd over Tuple of length $(length(fp._fs)) to Tuple of length $(length(x))."))
+end
+
+
+function ChangesOfVariables.with_logabsdet_jacobian(fp::FCartProd{<:NamedTuple{names}}, x::NamedTuple{names}) where names
+    return _sum_ladjs(typeof(fp), typeof(x), map(with_logabsdet_jacobian, fp._fs, x))
+end
+
+function ChangesOfVariables.with_logabsdet_jacobian(::FCartProd{<:NamedTuple{names,<:Tuple{Vararg{typeof(identity)}}}}, x::NamedTuple{names}) where names
+    return with_logabsdet_jacobian(identity, x)
+end
+
+function ChangesOfVariables.with_logabsdet_jacobian(@nospecialize(fs::FCartProd{<:NamedTuple}), @nospecialize(x::NamedTuple))
+    throw(ArgumentError("Can't apply FCartProd over NamedTuple with names $(propertynames(fp._fs)) to NamedTuple with names $(propertynames(x))."))
+end
+
+
+Base.@propagate_inbounds function ChangesOfVariables.with_logabsdet_jacobian(fp::FCartProd, x)
+    fs = fp._fs
+    @boundscheck _check_fp_sizes(IteratorSize(fs), IteratorSize(x), fs, x)
+    @inbounds result = _fp_apply_withladj(fp, x)
+    return result
+end
+
+Base.@propagate_inbounds function _fp_apply_withladj(fp::FCartProd, x)
+    y_with_ladj = with_logabsdet_jacobian.(fp._fs, x)
+    _sum_ladjs(typeof(fp), typeof(x), y_with_ladj)
+end
+
+_fp_apply_withladj(::FCartProd{<:AbstractArray{typeof(identity)}}, x) = with_logabsdet_jacobian(identity, x)
 
 
 end # module FunctionChainsChangesOfVariablesExt

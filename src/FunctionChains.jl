@@ -8,6 +8,7 @@ Implements chained functions (composed functions) beyond `Base.ComposedFunction`
 module FunctionChains
 
 using Base.Iterators: Take, Repeated
+using Base: IteratorSize, HasShape, HasLength
 
 using Tricks: static_hasmethod
 
@@ -21,5 +22,6 @@ include("fbcast.jl")
 include("fchain.jl")
 include("fcomp.jl")
 include("frepeat.jl")
+include("fcprod.jl")
 
 end # module

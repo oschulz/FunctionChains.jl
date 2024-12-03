@@ -1,12 +1,34 @@
 # This file is a part of FunctionChains.jl, licensed under the MIT License (MIT).
 
+if !isdefined(Main, :getjacobian)
 
 import ForwardDiff
 
 torv_and_back(V::AbstractVector{<:Real}) = V, identity
 torv_and_back(x::Real) = [x], V -> V[1]
 torv_and_back(x::Complex) = [real(x), imag(x)], V -> Complex(V[1], V[2])
-torv_and_back(x::NTuple{N}) where N = [x...], V -> ntuple(i -> V[i], Val(N))
+
+function torv_and_back(x::Tuple{Vararg{Any,N}}) where N
+    xs_fs_flat = map(torv_and_back, x)
+    xs = map(x -> x[1], xs_fs_flat)
+    fs = map(x -> x[2], xs_fs_flat)
+    offs = [0, cumsum(map(length, xs))...]
+    flat_x = vcat(xs...)
+
+    function f_back(flat_x)
+        idxs = offs .+ firstindex(flat_x)
+        rec_xs = getindex.(Ref(flat_x), range.(idxs[begin:end-1], idxs[begin+1:end] .- 1))
+        return (map((f, x) -> f(x), fs, rec_xs)...,)
+    end
+
+    flat_x, f_back
+end
+
+function torv_and_back(x::NamedTuple{names}) where {names}
+    flat_x, f_back_tpl = torv_and_back(values(x))
+    f_back(flat_x) = NamedTuple{names}(f_back_tpl(flat_x))
+    return flat_x, f_back
+end
 
 function torv_and_back(x::Ref)
     xval = x[]
@@ -33,3 +55,5 @@ function getjacobian(f, x)
     vf(V) = torv_and_back(f(to_x(V)))[1]
     ForwardDiff.jacobian(vf, V)
 end
+
+end # !isdefined(Main, :getjacobian)

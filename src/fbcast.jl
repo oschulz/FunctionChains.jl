@@ -8,7 +8,7 @@ Return a broadcasted version of the function `f`, so that
 `fbcast(f)(A, ...)` is semantically equivalent to `f.(A, ...)`.
 
 `fbcast(f)(A)` is also semantically equivalent to
-`fprod( Fill(f, size(A)) )(A)`.
+`fcprod( Fill(f, size(A)) )(A)`.
 
 Typically returns a `Broadcast.BroadcastFunction`, but may be specialized to
 return broadcasted implementations depending on the type of `f`. For example,

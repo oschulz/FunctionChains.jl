@@ -72,6 +72,12 @@ end
 
 Base.show(io::IO, fc::FunctionChain) = show(io, MIME"text/plain"(), fc)
 
+Base.length(fc::FunctionChain) = length(fc.fs)
+
+# Enables `(fc...,)` and `[fc...]`
+Base.iterate(fc::FunctionChain) = iterate(fc.fs)
+Base.iterate(fc::FunctionChain, state) = iterate(fc.fs, state)
+
 # Enables `(; fc...)`
 Base.merge(a::NamedTuple, fc::FunctionChain{<:NamedTuple{names}}) where {names} = merge(a, fc.fs)
 

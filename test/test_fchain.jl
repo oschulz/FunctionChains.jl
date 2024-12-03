@@ -22,6 +22,10 @@ include("testfuncs.jl")
         @testset "$label" begin
             @test !any(x -> x isa ComposedFunction, fc.fs)
 
+            @test length(fc) == length(fc.fs)
+            @test (fc...,) == (fc.fs...,)
+            @test [fc...] == [fc.fs...]
+
             cf = foldl(∘, reverse(collect(fc.fs)))
             @test @inferred(fc(x)) == cf(x)
 
@@ -133,6 +137,7 @@ include("testfuncs.jl")
     f = fchain(Mul(3), Add(2), InvMul(2.5), Subtract(4))
     @test @inferred(f([1.1, 2.2])) == 2.5 \ (3 * [1.1, 2.2] .+ 2) .- 4
     test_function_chain(f, [1.1, 2.2], true, true, "Tuple of AffineMap")
+    @test @inferred(((fc)->(fc...,))(f)) == f.fs
 
     @test @inferred(fchain(a = Mul(3), c = Add(2), b = InvMul(2.5), z = Subtract(4))) isa FunctionChain
     f = fchain(a = Mul(3), c = Add(2), b = InvMul(2.5), z = Subtract(4))

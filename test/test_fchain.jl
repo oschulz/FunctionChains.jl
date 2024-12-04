@@ -163,7 +163,7 @@ include("testfuncs.jl")
     @test @inferred(with_intermediate_results(f, [1.1, 2.2])) ≈ [[2.2, 4.4], [6.6, 13.2], [26.4, 52.8], [132.0, 264.0]]
     test_function_chain(f, [1.1, 2.2], false, true, "Generator of Mul")
 
-    @test @inferred(fchain(repeated(Mul(2), 5))) isa FunctionChain{<:Base.Iterators.Take}
+    @test @inferred(fchain(repeated(Mul(2), 5))) isa FunctionChain{<:Take}
     f = fchain(repeated(Mul(2), 5))
     test_function_chain(f, [1.1, 2.2], true, true, "Generator of Mul")
 

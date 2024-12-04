@@ -17,7 +17,9 @@ using InverseFunctions: inverse
 
     @test @inferred(inverse(inverse(fc))) == fc
 
-    @test f∘̂ 0 == identity
+    @test f∘̂ 0 === identity
+    @test f∘̂ 1 === f
+    @test f∘̂ -1 == inverse(f)
     @test f∘̂ n == fc
     @test f∘̂ -n == inverse(fc)
 end

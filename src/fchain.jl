@@ -270,8 +270,8 @@ end
 # InverseFunctions support
 
 _reverse(fs) = reverse(fs)
-_reverse(fs::Base.Iterators.Repeated) = fs
-_reverse(fs::Base.Iterators.Take{<:Base.Iterators.Repeated}) = fs
+_reverse(fs::Repeated) = fs
+_reverse(fs::Take{<:Repeated}) = fs
 
 _is_noinverse(f) = f isa NoInverse
 _contains_noinverse(fs) = Val(any(_is_noinverse, fs))

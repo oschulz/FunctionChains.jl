@@ -7,6 +7,8 @@ Implements chained functions (composed functions) beyond `Base.ComposedFunction`
 """
 module FunctionChains
 
+using Base.Iterators: Take, Repeated
+
 using Tricks: static_hasmethod
 
 import InverseFunctions

@@ -28,6 +28,8 @@ export with_intermediate_results
 with_intermediate_results(f, x) = (f(x),)
 
 
+_typed_funcs_tuple(fs::Vararg{Function,N}) where N = (fs...,)
+
 @inline @generated function _typed_funcs_tuple(fs::Vararg{Any,N}) where N
     expr = Expr(:tuple)
     for i in 1:N

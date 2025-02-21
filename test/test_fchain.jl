@@ -18,7 +18,18 @@ include("getjacobian.jl")
 include("testfuncs.jl")
 
 @testset "function_chain" begin
-    function test_function_chain(fc, x, invertible::Bool, with_ladj::Bool, label::AbstractString)
+    fc2cf(fc::FunctionChain) = foldl(∘, reverse(collect(fchainfs(fc))))
+    fbcast_fc2cf(fc::FunctionChain) = foldl(∘, reverse(map(Broadcast.BroadcastFunction, collect(fchainfs(fc)))))
+
+    # with_intermediate_results reference implementation:
+    ref_wir(fc::FunctionChain{<:Tuple}, x) = foldl((acc, f) -> (acc..., f(last(acc))), values(fchainfs(fc)), init = (x,))[2:end]
+    ref_wir(fc::FunctionChain{<:NamedTuple{names}}, x) where names = NamedTuple{names}(ref_wir(fchain(values(fchainfs(fc))...), x))
+    ref_wir(fc::FunctionChain, x) = foldl((acc, f) -> [acc..., f(last(acc))], values(fchainfs(fc)), init = [x])[2:end]
+    ref_wir_bc(fc::FunctionChain{<:Tuple}, x) = foldl((acc, f) -> (acc..., f.(last(acc))), values(fchainfs(fc)), init = (x,))[2:end]
+    ref_wir_bc(fc::FunctionChain{<:NamedTuple{names}}, x) where names = NamedTuple{names}(ref_wir_bc(fchain(values(fchainfs(fc))...), x))
+    ref_wir_bc(fc::FunctionChain, x) = foldl((acc, f) -> [acc..., f.(last(acc))], values(fchainfs(fc)), init = [x])[2:end]
+
+    function test_function_chain(fc, x, xs, invertible::Bool, with_ladj::Bool, label::AbstractString)
         @testset "$label" begin
             @test @inferred(fchainfs(fc)) === getfield(fc, :_fs)
 
@@ -28,11 +39,13 @@ include("testfuncs.jl")
             @test (fc...,) == (fchainfs(fc)...,)
             @test [fc...] == [fchainfs(fc)...]
 
-            cf = foldl(∘, reverse(collect(fchainfs(fc))))
+            cf = fc2cf(fc)
             @test @inferred(fc(x)) == cf(x)
 
             y_out = @inferred fc(x)
             ys_out = @inferred with_intermediate_results(fc, x)
+
+            @test ys_out == ref_wir(fc, x)
 
             ys_out_values = if fchainfs(fc) isa NamedTuple
                 @test propertynames(ys_out) == propertynames(fchainfs(fc))
@@ -63,6 +76,19 @@ include("testfuncs.jl")
                 ChangesOfVariables.test_with_logabsdet_jacobian(fc, x, getjacobian)
             else
                 @test @inferred(with_logabsdet_jacobian(fc, x)) isa NoLogAbsDetJacobian
+            end
+
+            if !isnothing(xs)
+                refbc_f_tpl = fbcast_fc2cf(fc)
+                @test @inferred(broadcast(fc, (xs))) == cf.(xs)
+                @test @inferred(fbcast(fc)(xs)) == cf.(xs)
+                @test @inferred(with_intermediate_results(fbcast(fc), xs)) == ref_wir_bc(fc, xs)
+                if with_ladj
+                    ly, ladj = @inferred(with_logabsdet_jacobian(fbcast(fc), xs))
+                    ly_ref, ladj_ref = with_logabsdet_jacobian(refbc_f_tpl, xs)
+                    @test ly == ly_ref
+                    @test ladj ≈ ladj_ref
+                end              
             end
         end
     end
@@ -138,41 +164,48 @@ include("testfuncs.jl")
         @test @inferred(Functors.fmap(Array{Float32}, f)(rand(Float32, 3))) isa Vector{Float32}
     end
 
+    x = 0.3
+    xs = [0.3, 0.4, 0.5]
+
+    vx = [1.1, 2.2]
+    vxs = [1.1, 2.2], [3.3, 4.4], [5.5, 6.6]
+
     @test @inferred(fchain(Mul(3), Add(2), InvMul(2.5), Subtract(4))) isa FunctionChain
     f = fchain(Mul(3), Add(2), InvMul(2.5), Subtract(4))
     @test @inferred(f([1.1, 2.2])) == 2.5 \ (3 * [1.1, 2.2] .+ 2) .- 4
-    test_function_chain(f, [1.1, 2.2], true, true, "Tuple of AffineMap")
+    test_function_chain(f, vx, vxs, true, true, "Tuple of AffineMap")
     @test @inferred(((fc)->(fc...,))(f)) == fchainfs(f)
 
     @test @inferred(fchain(a = Mul(3), c = Add(2), b = InvMul(2.5), z = Subtract(4))) isa FunctionChain
     f = fchain(a = Mul(3), c = Add(2), b = InvMul(2.5), z = Subtract(4))
     @test @inferred(f([1.1, 2.2])) == 2.5 \ (3 * [1.1, 2.2] .+ 2) .- 4
-    test_function_chain(f, [1.1, 2.2], true, true, "NamedTuple of AffineMap")
+    test_function_chain(f, vx, vxs, true, true, "NamedTuple of AffineMap")
     @test @inferred(merge((;), f)) == fchainfs(f)
     @test (; f...) == fchainfs(f)
 
     @test @inferred(fchain(Mul.(2:5))) isa FunctionChain{Vector{Mul{Int}}}
     f = fchain(Mul.(2:5))
     @test @inferred(f(1.2)) ≈ 1.2 * prod(2:5)
-    test_function_chain(f, 1.2, true, true, "Vector of Mul, scalar arg")
+    test_function_chain(f, x, xs, true, true, "Vector of Mul, scalar arg")
     @test @inferred(with_intermediate_results(f, [1.1, 2.2])) ≈ [[2.2, 4.4], [6.6, 13.2], [26.4, 52.8], [132.0, 264.0]]
-    test_function_chain(f, [1.1, 2.2], true, true, "Tuple of Mul, vector arg")
+    test_function_chain(f, vx, vxs, true, true, "Tuple of Mul, vector arg")
 
     @test @inferred(fchain(Mul(i) for i in 2:5)) isa FunctionChain{<:Base.Generator}
     f = fchain(Mul(i) for i in 2:5)
     @test @inferred(with_intermediate_results(f, [1.1, 2.2])) ≈ [[2.2, 4.4], [6.6, 13.2], [26.4, 52.8], [132.0, 264.0]]
-    test_function_chain(f, [1.1, 2.2], false, true, "Generator of Mul")
+    test_function_chain(f, vx, vxs, false, true, "Generator of Mul")
 
     @test @inferred(fchain(repeated(Mul(2), 5))) isa FunctionChain{<:Base.Iterators.Take}
     f = fchain(repeated(Mul(2), 5))
-    test_function_chain(f, [1.1, 2.2], true, true, "Generator of Mul")
+    test_function_chain(f, vx, vxs, true, true, "Generator of Mul")
 
     @test @inferred(inv ∘ fchain() ∘ (expm1 ∘ log)) == fchain((log, expm1, inv))
     @test @inferred(fchain((log, expm1, inv))(0.3)) == (inv ∘ expm1 ∘ log)(0.3)
-    test_function_chain(fchain((log, expm1, inv)), 0.3, true, true, "log-expm1-inv")
-    test_function_chain(fchain(fill(expm1, 3)), 0.3, true, true, "fill-expm1")
-    test_function_chain(fchain((log, sin, expm1, inv)), 0.3, false, false, "log-sin-expm1-inv")
-    test_function_chain(fchain(fill(sin, 3)), 0.3, false, false, "fill-sin")
+    test_function_chain(fchain((log, expm1, inv)), x, xs, true, true, "log-expm1-inv")
+    test_function_chain(fchain((a = log, c = expm1, d = inv)), x, xs, true, true, "log-expm1-inv")
+    test_function_chain(fchain(fill(expm1, 3)), x, xs, true, true, "fill-expm1")
+    test_function_chain(fchain((log, sin, expm1, inv)), x, xs, false, false, "log-sin-expm1-inv")
+    test_function_chain(fchain(fill(sin, 3)), x, xs, false, false, "fill-sin")
 
     @static if isdefined(Main, :FlexiMaps)
         @testset "FlexiMaps support" begin

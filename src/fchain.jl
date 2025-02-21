@@ -69,6 +69,9 @@ end
 export FunctionChain
 
 
+const _BCastedFC{FS} = Base.Broadcast.BroadcastFunction{<:FunctionChain{FS}}
+
+
 fchainfs(fc::FunctionChain) = getfield(fc, :_fs)
 
 
@@ -141,51 +144,89 @@ end
 @inline _compose_sf_fc(f::F, g::FunctionChain{<:AbstractVector{F}}) where F = FunctionChain(push!(copy(g._fs), f))
 
 
-_iterate_fs(::Nothing, fs, x) = throw(ArgumentError("Chain of functions must not be an empty iterable"))
+_iterate_fs(::Nothing, fs, x, f_apply) = throw(ArgumentError("Chain of functions must not be an empty iterable"))
 
-function _iterate_fs((f1, itr_state), fs, x)
-    y = f1(x)
+function _iterate_fs((f1, itr_state), fs, x, f_apply)
+    y = f_apply(f1, x)
     next = iterate(fs, itr_state)
     while !isnothing(next)
         f_i, itr_state = next
-        y = f_i(y)
+        y = f_apply(f_i, y)
         next = iterate(fs, itr_state)
     end
     return y
 end
 
-(fc::FunctionChain)(x) = _iterate_fs(iterate(fc._fs), fc._fs, x)
+(fc::FunctionChain)(x) = _iterate_fs(iterate(fc._fs), fc._fs, x, applyf)
+
+@inline Base.broadcasted(fc::FunctionChain, x) = _bc_fc(fc, x)
+
+_bc_fc(fc::FunctionChain, x) = _iterate_fs(iterate(fc._fs), fc._fs, x, broadcast)
+
 
 _iterate_fs_withintermediate(::Nothing, fs, x::T) where T = throw(ArgumentError("Chain of functions must not be an empty iterable"))
 
-
-function _iterate_fs_withintermediate((f1, itr_state), fs, x)
-    y = f1(x)
+function _iterate_fs_withintermediate((f1, itr_state), fs, x, f_apply)
+    y = f_apply(f1, x)
     ys = _similar_empty(fs, typeof(y))
     _sizehint!(ys, Base.IteratorSize(fs), fs)
     ys = _push!!(ys, y)
     next = iterate(fs, itr_state)
     while !isnothing(next)
         f_i, itr_state = next
-        y = f_i(y)
+        y = f_apply(f_i, y)
         ys = _push!!(ys, y)
         next = iterate(fs, itr_state)
     end
     return ys
 end
 
-with_intermediate_results(fc::FunctionChain, x) = _iterate_fs_withintermediate(iterate(fc._fs), fc._fs, x)
+function with_intermediate_results(fc::FunctionChain, x)
+    fs = fchainfs(fc)
+    return _iterate_fs_withintermediate(iterate(fs), fs, x, applyf)
+end
+
+function with_intermediate_results(bfc::_BCastedFC, x)
+    fs = fchainfs(bfc.f)
+    return _iterate_fs_withintermediate(iterate(fs), fs, x, broadcast)
+end
 
 
-function _tuple_fc_exprs(::Type{FS}) where {FS<:Tuple}
-    expr = Expr(:block)
-    y_0 = Symbol(:y, 0)
-    push!(expr.args, :($y_0 = x))
-    idxs = eachindex(FS.parameters)
-    for i in idxs
-        y_i, x_i = Symbol(:y, i), Symbol(:y, i-1)
-        push!(expr.args, :($y_i = fs[$i]($x_i)))
+function _fc_fs_tpl_expr(
+    n::Integer;
+    f_apply::Union{Symbol,Expr} = :applyf, postproc::Union{Symbol,Expr} = :identity,
+    return_intermediates::Bool = false
+)
+    if n > 0
+        expr = Expr(:block)
+        y_syms = Symbol.(:y, 1:n)
+        for i in 1:n
+            y_i, x_i = y_syms[i], (i > 1 ? y_syms[i-1] : :x)
+            if f_apply == :applyf
+                push!(expr.args, :($y_i = fs[$i]($x_i)))
+            else
+                push!(expr.args, :($y_i = ($f_apply)(fs[$i], $x_i)))
+            end
+        end
+        results = if postproc == :identity
+            y_syms
+        else
+            map(ysym -> :($postproc($ysym)), y_syms)
+        end
+        if return_intermediates
+            push!(expr.args, :(return ($(results...),)))
+        else
+            push!(expr.args, :(return $(last(results))))
+        end
+        return expr
+    else
+        if return_intermediates
+            return :(return (x,))
+        else
+            return :(return x)
+        end
     end
+    
     return expr
 end
 
@@ -194,32 +235,53 @@ end
 
 @inline (fc::FunctionChain{Tuple{F}})(x) where F = fc._fs[1](x)
 
-@inline (fc::FunctionChain{FS})(x) where {FS<:Tuple} = _tuple_fc_apply(fc._fs, x)
+@inline (fc::FunctionChain{FS})(x) where {FS<:Tuple} = _apply_fc_fs_tpl(fc._fs, x)
 
-@inline (fc::FunctionChain{<:NamedTuple})(x) = _tuple_fc_apply(values(fc._fs), x)
+@inline (fc::FunctionChain{<:NamedTuple})(x) = _apply_fc_fs_tpl(values(fc._fs), x)
 
-@generated function _tuple_fc_apply(fs::FS, x) where {FS<:Tuple}
-    expr = _tuple_fc_exprs(fs)
-    push!(expr.args, Symbol(:y, last(eachindex(FS.parameters))))
-    return expr
+@generated function _apply_fc_fs_tpl(fs::FS, x) where {FS<:Tuple}
+    n = length(eachindex(FS.parameters))
+    return _fc_fs_tpl_expr(n)
 end
 
 
-@inline with_intermediate_results(::FunctionChain{Tuple{}}, x) = ()
+@inline _bc_fc(fc::FunctionChain{FS}, x) where {FS<:Tuple} = _bc_fc_fs_tpl(fc._fs, x)
+
+@inline _bc_fc(fc::FunctionChain{<:NamedTuple}, x) = _bc_fc_fs_tpl(values(fc._fs), x)
+
+@generated function _bc_fc_fs_tpl(fs::FS, x) where {FS<:Tuple}
+    n = length(FS.parameters)
+    return _fc_fs_tpl_expr(n, f_apply = :(Base.broadcasted), postproc = :identity, return_intermediates = false)
+end
+
+
+@inline with_intermediate_results(::FunctionChain{Tuple{}}, x) = (x,)
 
 @inline with_intermediate_results(fc::FunctionChain{Tuple{F}}, x) where F = (fc._fs[1](x),)
 
-@inline with_intermediate_results(fc::FunctionChain{FS}, x) where {FS<:Tuple} = _tuple_fc_with_apply_interm(fc._fs, x)
+@inline with_intermediate_results(fc::FunctionChain{FS}, x) where {FS<:Tuple} = _apply_interm_fc_fs_tpl(fc._fs, x)
 
 @inline function with_intermediate_results(fc::FunctionChain{<:NamedTuple{names}}, x) where {names}
-    return NamedTuple{names}(_tuple_fc_with_apply_interm(values(fc._fs), x))
+    return NamedTuple{names}(_apply_interm_fc_fs_tpl(values(fc._fs), x))
 end
 
-@generated function _tuple_fc_with_apply_interm(fs::FS, x) where {FS<:Tuple}
-    expr = _tuple_fc_exprs(fs)
-    push!(expr.args, :(($([Symbol(:y, i) for i in eachindex(FS.parameters)]...),)))
-    return expr
+@generated function _apply_interm_fc_fs_tpl(fs::FS, x) where {FS<:Tuple}
+    n = length(eachindex(FS.parameters))
+    return _fc_fs_tpl_expr(n, return_intermediates = true)
 end
+
+
+with_intermediate_results(bfc::_BCastedFC{FS}, x) where {FS<:Tuple} = _bc_interm_fc_fs_tpl(bfc.f._fs, x)
+
+@inline function with_intermediate_results(bfc::_BCastedFC{<:NamedTuple{names}}, x) where {names}
+    return NamedTuple{names}(_bc_interm_fc_fs_tpl(values(bfc.f._fs), x))
+end
+
+@generated function _bc_interm_fc_fs_tpl(fs::FS, x) where {FS<:Tuple}
+    n = length(eachindex(FS.parameters))
+    return _fc_fs_tpl_expr(n, f_apply = :(Base.broadcast), postproc = :identity, return_intermediates = true)
+end
+
 
 
 """

@@ -23,5 +23,6 @@ include("fchain.jl")
 include("fcomp.jl")
 include("frepeat.jl")
 include("fcprod.jl")
+include("ffanout.jl")
 
 end # module

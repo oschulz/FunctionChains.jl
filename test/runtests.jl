@@ -10,5 +10,6 @@ Test.@testset "Package FunctionChains" begin
     include("test_fcomp.jl")
     include("test_frepeat.jl")
     include("test_fcprod.jl")
+    include("test_ffanout.jl")
     include("test_docs.jl")
 end # testset

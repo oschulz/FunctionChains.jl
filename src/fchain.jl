@@ -220,6 +220,7 @@ _contains_noinverse(fs) = Val(any(_is_noinverse, fs))
     result = any(x -> x <: NoInverse, fs.parameters)
     :(Val($result))
 end
+_contains_noinverse(fs::NamedTuple) = _contains_noinverse(values(fs))
 _contains_noinverse(fs::AbstractArray) = Val(false)
 _contains_noinverse(fs::AbstractArray{<:NoInverse}) = Val(true)
 _contains_noinverse(fs::AbstractArray{>:NoInverse}) = Val(any(_is_noinverse, fs))

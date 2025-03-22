@@ -1,4 +1,4 @@
-# This file is a part of FunctionProducts.jl, licensed under the MIT License (MIT).
+# This file is a part of FunctionChains.jl, licensed under the MIT License (MIT).
 
 
 """

@@ -31,3 +31,28 @@ export fcomp
 function fcomp(@nospecialize(fs::Tuple))
     throw(ArgumentError("Do not use fcomp(fs::Tuple) with fs elements not of type Function, due to possible type instabilities, use `fcomp(fs...)` instead."))
 end
+
+
+"""
+    ffcomp(f, g, hs...)
+    ffcomp() = identity
+    ffcomp(f) = f
+    ffcomp(::Type{F}) where F = FunctionChains.AsFunction{Type{F}}(F)
+
+Similar to [`fcomp((f, g, hs...))`](@ref), but flattens arguments of type
+`ComposedFunction` and merges [`FunctionChain`](@ref) arguments.
+
+Tries to remove superfluous `identity` functions and to return a simple
+function instead of a `FunctionChain` if possible.
+
+Behaves like `ffchain(hs..., g, f)` (see [`ffchain`](@ref)).
+"""
+function ffcomp end
+export ffcomp
+
+@inline ffcomp() = identity
+@inline ffcomp(f) = f
+@inline ffcomp(::Type{F}) where F = FunctionChains.AsFunction{Type{F}}(F)
+@inline ffcomp(f::ComposedFunction) = _flat_fs_postproc(_flat_fs(f))
+
+@inline ffcomp(fs::Vararg{Any,N}) where N = ffchain(reverse(fs)...)

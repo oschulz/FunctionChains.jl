@@ -363,3 +363,54 @@ function InverseFunctions.inverse(fc::FunctionChain{<:Iterators.Take{<:Iterators
 end
 
 InverseFunctions.inverse(fc::FunctionChain{<:Base.Generator}) = NoInverse(fc)
+
+
+
+"""
+    ffchain(f, g, hs...)
+    ffchain() = identity
+    ffchain(f) = f
+    ffchain(::Type{F}) where F = FunctionChains.AsFunction{Type{F}}(F)
+
+Similar to [`fchain((f, g, hs...))`](@ref), but flattens arguments of type
+`ComposedFunction` and merges [`FunctionChain`](@ref) arguments.
+
+Tries to remove superfluous `identity` functions and to return a simple
+function instead of a `FunctionChain` if possible.
+
+Behaves like `ffcomp(hs..., g, f)` (see [`ffcomp`](@ref)).
+"""
+function ffchain end
+export ffchain
+
+@inline ffchain() = identity
+@inline ffchain(f) = f
+@inline ffchain(::Type{F}) where F = FunctionChains.AsFunction{Type{F}}(F)
+@inline ffchain(f::ComposedFunction) = _flat_fs_postproc(_flat_fs(f))
+
+@inline _flat_fs(f::F) where F = (f,)
+@inline _flat_fs(::typeof(identity)) = ()
+@inline _flat_fs(::Type{F}) where F = (FunctionChains.AsFunction{Type{F}}(F),)
+@inline _flat_fs(f::ComposedFunction) = (_flat_fs(f.inner)..., _flat_fs(f.outer)...)
+@inline _flat_fs(f::FunctionChain{<:Tuple}) = fchainfs(f)
+
+@inline _flat_fs_postproc(::Tuple{}) = identity
+@inline _flat_fs_postproc(fs::Tuple{F}) where F = fs[1]
+@inline _flat_fs_postproc(fs::Tuple) = FunctionChain(fs)
+
+@inline @generated function ffchain(fs::Vararg{Any,N}) where N
+    expr = Expr(:tuple)
+    for i in 1:N
+        if !(fs[i] <: typeof(identity))
+            push!(expr.args, :(_flat_fs(fs[$i])...))
+        end
+    end
+    if length(expr.args) == 0
+        return :(identity)
+    elseif length(expr.args) == 1
+        only_fs = only(only(expr.args).args)
+        return :(_flat_fs_postproc($only_fs))
+    else
+        return :(FunctionChain($(expr)))
+    end
+end

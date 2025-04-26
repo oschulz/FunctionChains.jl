@@ -218,4 +218,20 @@ include("testfuncs.jl")
             @test @inferred(FlexiMaps.isaffine(fchain(sin, cos))) == false
         end
     end
+
+    @testset "ffchain" begin
+        @test @inferred(ffchain()) === identity
+        @test @inferred(ffchain(identity)) === identity
+        @test @inferred(ffchain(identity, identity)) === identity
+        @test @inferred(ffchain(log)) === log
+        @test @inferred(ffchain(log, exp)) === fchain(log, exp)
+        @test @inferred(ffchain(log, exp, sqrt)) === fchain(log, exp, sqrt)
+        @test @inferred(ffchain(Int)) isa FunctionChains.AsFunction{Type{Int}}
+        @test @inferred(ffchain(identity, Int, identity)) isa FunctionChains.AsFunction{Type{Int}}
+        @test @inferred(ffchain(Int, Float32)) === fchain(Int, Float32)
+        @test @inferred(ffchain(identity, Float32 ∘ identity ∘ Int, identity)) === fchain(Int, Float32)
+        @test @inferred(ffchain((identity ∘ identity) ∘ identity ∘ (identity ∘ identity))) === identity
+        @test @inferred(ffchain((sin ∘ cos) ∘ identity ∘ (tan ∘ identity))) === fchain(tan, cos, sin)
+        @test @inferred(ffchain((sin ∘ cos) ∘ identity ∘ (tan ∘ identity), fchain(exp, log, sqrt), Float32)) === fchain(tan, cos, sin, exp, log, sqrt, Float32)
+    end
 end

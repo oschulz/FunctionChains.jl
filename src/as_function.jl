@@ -20,6 +20,14 @@ Base.isapprox(a::AsFunction, b::AsFunction; kwargs...) = isapprox(a.f, b.f; kwar
 @inline (ff::AsFunction)(x) = ff.f(x)
 @inline (ff::AsFunction)(xs...; kwargs...) = ff.f(xs...; kwargs...)
 
+@inline Broadcast.broadcasted(ff::AsFunction, x) = Broadcast.broadcasted(ff.f, xx)
+@inline Broadcast.broadcasted(ff::AsFunction, xs...) = Broadcast.broadcasted(ff.f, xs...)
+
+InverseFunctions.inverse(ff::AsFunction) = _typestable_func(InverseFunctions.inverse(ff.f))
+
+@inline _typestable_func(f) = f
+@inline _typestable_func(f::Type{T}) where T = AsFunction{Type{T}}(f)
+
 
 """
     asfunction(f)::Function

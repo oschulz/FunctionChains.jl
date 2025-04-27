@@ -4,6 +4,8 @@ using FunctionChains
 using Test
 
 using AffineMaps
+using InverseFunctions
+using ChangesOfVariables
 
 include("testfuncs.jl")
 
@@ -16,6 +18,11 @@ include("testfuncs.jl")
 
     @test @inferred(asfunction(log)) === log
     @test @inferred(asfunction(mc)) isa Function
+
+    @test @inferred(fbcast(asfunction(Int))) === fbcast(Int)
+    @test @inferred(inverse(asfunction(Int))) === inverse(Int)
+    @test @inferred(with_logabsdet_jacobian(asfunction(Int), 7)) === with_logabsdet_jacobian(Int, 7)
+
 
     for f in [mc, mf, tc]
         @test @inferred(asfunction(f)) isa Function

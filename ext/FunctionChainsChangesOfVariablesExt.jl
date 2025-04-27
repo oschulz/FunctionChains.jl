@@ -6,10 +6,15 @@ using ChangesOfVariables
 using ChangesOfVariables: with_logabsdet_jacobian
 using FunctionChains
 
-using FunctionChains: _BCastedFC
-using FunctionChains: _check_fp_sizes
+using FunctionChains: AsFunction
+using FunctionChains: _BCastedFC, _check_fp_sizes
 
 using Base: IteratorSize, HasShape, HasLength
+
+
+# AsFunction ==============================================================
+
+ChangesOfVariables.with_logabsdet_jacobian(ff::AsFunction, x) = with_logabsdet_jacobian(ff.f, x)
 
 
 # FunctionChain ==============================================================

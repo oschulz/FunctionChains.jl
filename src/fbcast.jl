@@ -22,5 +22,6 @@ export fbcast
 
 @inline fbcast(f::F) where F = Broadcast.BroadcastFunction{F}(f)
 @inline fbcast(::Type{F}) where F = Broadcast.BroadcastFunction{Type{F}}(F)
+@inline fbcast(ff::AsFunction) = fbcast(ff.f)
 
 @inline fbcast(::typeof(identity)) = identity

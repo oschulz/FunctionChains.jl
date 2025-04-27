@@ -12,6 +12,7 @@ import FlexiMaps
 
 include("getjacobian.jl")
 include("approx_cmp.jl")
+include("modify_output.jl")
 include("testfuncs.jl")
 
 @testset "function_chain" begin
@@ -25,11 +26,6 @@ include("testfuncs.jl")
     ref_wir_bc(fc::FunctionChain{<:Tuple}, x) = foldl((acc, f) -> (acc..., f.(last(acc))), values(fchainfs(fc)), init = (x,))[2:end]
     ref_wir_bc(fc::FunctionChain{<:NamedTuple{names}}, x) where names = NamedTuple{names}(ref_wir_bc(fchain(values(fchainfs(fc))...), x))
     ref_wir_bc(fc::FunctionChain, x) = foldl((acc, f) -> [acc..., f.(last(acc))], values(fchainfs(fc)), init = [x])[2:end]
-
-    modify_output(y::Number) = sign(y) * abs(y)^1.2
-    modify_output(y::Tuple) = map(modify_output, y)
-    modify_output(y::NamedTuple) = map(modify_output, y)
-    modify_output(y::AbstractArray) = modify_output.(y)
 
     function test_function_chain(fc, x, xs, invertible::Bool, settable::Bool, with_ladj::Bool, label::AbstractString)
         @testset "$label" begin

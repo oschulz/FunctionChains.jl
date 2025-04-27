@@ -8,11 +8,7 @@ import Adapt, Functors
 using AffineMaps
 import ForwardDiff
 
-import Pkg
-if ("FlexiMaps" in keys(Pkg.project().dependencies))
-    # FlexiMaps supports Julia >= v1.9 only.
-    import FlexiMaps
-end
+import FlexiMaps
 
 include("getjacobian.jl")
 include("testfuncs.jl")

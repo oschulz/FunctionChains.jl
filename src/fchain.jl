@@ -195,7 +195,7 @@ end
 function _fc_fs_tpl_expr(
     n::Integer;
     f_apply::Union{Symbol,Expr} = :applyf, postproc::Union{Symbol,Expr} = :identity,
-    return_intermediates::Bool = false
+    reduction::Symbol = :last
 )
     if n > 0
         expr = Expr(:block)
@@ -213,20 +213,41 @@ function _fc_fs_tpl_expr(
         else
             map(ysym -> :($postproc($ysym)), y_syms)
         end
-        if return_intermediates
-            push!(expr.args, :(return ($(results...),)))
-        else
+        if reduction == :last
             push!(expr.args, :(return $(last(results))))
+        elseif reduction == :intermediates
+            push!(expr.args, :(return ($(results...),)))
+        elseif reduction == :accessors_set
+            pop!(expr.args)
+            for i in n:-1:1
+                y_sym = i > 1 ? y_syms[i-1] : :x
+                new_y_sym = i < n ? Symbol.(:new_y, i) : :z
+                new_x_sym = i > 1 ? Symbol.(:new_y, i-1) : :new_x
+                if f_apply == :applyf
+                    push!(expr.args, :($new_x_sym = Accessors.set($y_sym, fs[$i], $new_y_sym)))
+                elseif f_apply == :(Base.broadcast)
+                    push!(expr.args, :($new_x_sym = Accessors.set($y_sym, fbcast(fs[$i]), $new_y_sym)))
+                else
+                    throw(ArgumentError("Invalid f_apply: $f_apply"))
+                end
+            end
+            push!(expr.args, :(return new_x))
+        else
+            throw(ArgumentError("Invalid reduction type: $reduction"))
         end
         return expr
     else
-        if return_intermediates
-            return :(return (x,))
-        else
+        if reduction == :last
             return :(return x)
+        elseif reduction == :intermediates
+            return :(return (x,))
+        elseif reduction == :accessors_set
+            return :(return z)
+        else
+            throw(ArgumentError("Invalid reduction type: $reduction"))
         end
     end
-    
+
     return expr
 end
 
@@ -251,7 +272,7 @@ end
 
 @generated function _bc_fc_fs_tpl(fs::FS, x) where {FS<:Tuple}
     n = length(FS.parameters)
-    return _fc_fs_tpl_expr(n, f_apply = :(Base.broadcasted), postproc = :identity, return_intermediates = false)
+    return _fc_fs_tpl_expr(n, f_apply = :(Base.broadcasted), postproc = :identity, reduction = :last)
 end
 
 
@@ -267,7 +288,7 @@ end
 
 @generated function _apply_interm_fc_fs_tpl(fs::FS, x) where {FS<:Tuple}
     n = length(eachindex(FS.parameters))
-    return _fc_fs_tpl_expr(n, return_intermediates = true)
+    return _fc_fs_tpl_expr(n, reduction = :intermediates)
 end
 
 
@@ -279,7 +300,7 @@ end
 
 @generated function _bc_interm_fc_fs_tpl(fs::FS, x) where {FS<:Tuple}
     n = length(eachindex(FS.parameters))
-    return _fc_fs_tpl_expr(n, f_apply = :(Base.broadcast), postproc = :identity, return_intermediates = true)
+    return _fc_fs_tpl_expr(n, f_apply = :(Base.broadcast), postproc = :identity, reduction = :intermediates)
 end
 
 

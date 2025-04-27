@@ -7,7 +7,7 @@ using InverseFunctions, ChangesOfVariables
 import Adapt, Functors
 using AffineMaps
 import ForwardDiff
-
+using Accessors: set, PropertyLens, IndexLens
 import FlexiMaps
 
 include("getjacobian.jl")
@@ -26,7 +26,12 @@ include("testfuncs.jl")
     ref_wir_bc(fc::FunctionChain{<:NamedTuple{names}}, x) where names = NamedTuple{names}(ref_wir_bc(fchain(values(fchainfs(fc))...), x))
     ref_wir_bc(fc::FunctionChain, x) = foldl((acc, f) -> [acc..., f.(last(acc))], values(fchainfs(fc)), init = [x])[2:end]
 
-    function test_function_chain(fc, x, xs, invertible::Bool, with_ladj::Bool, label::AbstractString)
+    modify_output(y::Number) = sign(y) * abs(y)^1.2
+    modify_output(y::Tuple) = map(modify_output, y)
+    modify_output(y::NamedTuple) = map(modify_output, y)
+    modify_output(y::AbstractArray) = modify_output.(y)
+
+    function test_function_chain(fc, x, xs, invertible::Bool, settable::Bool, with_ladj::Bool, label::AbstractString)
         @testset "$label" begin
             @test @inferred(fchainfs(fc)) === getfield(fc, :_fs)
 
@@ -65,6 +70,11 @@ include("testfuncs.jl")
                 @test @inferred(inverse(fc)) isa NoInverse
             end
 
+            if settable
+                new_y = modify_output(y_out)
+                @test @inferred(set(x, fc, new_y)) == set(x, cf, new_y)
+            end
+
             if with_ladj
                 y_ladj_ref = with_logabsdet_jacobian(cf, x)
                 @test @inferred(with_logabsdet_jacobian(fc, x)) == y_ladj_ref
@@ -84,6 +94,10 @@ include("testfuncs.jl")
                     inv_bc_cf = inverse(bc_cf)
                     @test @inferred(inv_bc_fc(xs)) == inv_bc_cf(xs)
                     InverseFunctions.test_inverse(bc_fc, xs; compare = approx_cmp)
+                end
+                if settable
+                    new_ys = modify_output(bc_cf(xs))
+                    @test set(xs, bc_fc, new_ys) == set(xs, bc_cf, new_ys)
                 end
                 if with_ladj
                     ly, ladj = @inferred(with_logabsdet_jacobian(bc_fc, xs))
@@ -175,39 +189,51 @@ include("testfuncs.jl")
     @test @inferred(fchain(Mul(3), Add(2), InvMul(2.5), Subtract(4))) isa FunctionChain
     f = fchain(Mul(3), Add(2), InvMul(2.5), Subtract(4))
     @test @inferred(f([1.1, 2.2])) == 2.5 \ (3 * [1.1, 2.2] .+ 2) .- 4
-    test_function_chain(f, vx, vxs, true, true, "Tuple of AffineMap")
+    test_function_chain(f, vx, vxs, true, true, true, "Tuple of AffineMap")
     @test @inferred(((fc)->(fc...,))(f)) == fchainfs(f)
 
     @test @inferred(fchain(a = Mul(3), c = Add(2), b = InvMul(2.5), z = Subtract(4))) isa FunctionChain
     f = fchain(a = Mul(3), c = Add(2), b = InvMul(2.5), z = Subtract(4))
     @test @inferred(f([1.1, 2.2])) == 2.5 \ (3 * [1.1, 2.2] .+ 2) .- 4
-    test_function_chain(f, vx, vxs, true, true, "NamedTuple of AffineMap")
+    test_function_chain(f, vx, vxs, true, true, true, "NamedTuple of AffineMap")
     @test @inferred(merge((;), f)) == fchainfs(f)
     @test (; f...) == fchainfs(f)
 
     @test @inferred(fchain(Mul.(2:5))) isa FunctionChain{Vector{Mul{Int}}}
     f = fchain(Mul.(2:5))
     @test @inferred(f(1.2)) ≈ 1.2 * prod(2:5)
-    test_function_chain(f, x, xs, true, true, "Vector of Mul, scalar arg")
+    test_function_chain(f, x, xs, true, true, true, "Vector of Mul, scalar arg")
     @test @inferred(with_intermediate_results(f, [1.1, 2.2])) ≈ [[2.2, 4.4], [6.6, 13.2], [26.4, 52.8], [132.0, 264.0]]
-    test_function_chain(f, vx, vxs, true, true, "Tuple of Mul, vector arg")
+    test_function_chain(f, vx, vxs, true, true, true, "Tuple of Mul, vector arg")
 
     @test @inferred(fchain(Mul(i) for i in 2:5)) isa FunctionChain{<:Base.Generator}
     f = fchain(Mul(i) for i in 2:5)
     @test @inferred(with_intermediate_results(f, [1.1, 2.2])) ≈ [[2.2, 4.4], [6.6, 13.2], [26.4, 52.8], [132.0, 264.0]]
-    test_function_chain(f, vx, vxs, false, true, "Generator of Mul")
+    test_function_chain(f, vx, vxs, false, false, true, "Generator of Mul")
 
     @test @inferred(fchain(repeated(Mul(2), 5))) isa FunctionChain{<:Base.Iterators.Take}
     f = fchain(repeated(Mul(2), 5))
-    test_function_chain(f, vx, vxs, true, true, "Generator of Mul")
+    test_function_chain(f, vx, vxs, true, true, true, "Generator of Mul")
 
     @test @inferred(inv ∘ fchain() ∘ (expm1 ∘ log)) == fchain((log, expm1, inv))
     @test @inferred(fchain((log, expm1, inv))(0.3)) == (inv ∘ expm1 ∘ log)(0.3)
-    test_function_chain(fchain((log, expm1, inv)), x, xs, true, true, "log-expm1-inv")
-    test_function_chain(fchain((a = log, c = expm1, d = inv)), x, xs, true, true, "log-expm1-inv")
-    test_function_chain(fchain(fill(expm1, 3)), x, xs, true, true, "fill-expm1")
-    test_function_chain(fchain((log, sin, expm1, inv)), x, xs, false, false, "log-sin-expm1-inv")
-    test_function_chain(fchain(fill(sin, 3)), x, xs, false, false, "fill-sin")
+    test_function_chain(fchain((log, expm1, inv)), x, xs, true, true, true, "log-expm1-inv")
+    test_function_chain(fchain((a = log, c = expm1, d = inv)), x, xs, true, true, true, "log-expm1-inv")
+    test_function_chain(fchain(fill(expm1, 3)), x, xs, true, true, true, "fill-expm1")
+    test_function_chain(fchain((log, sin, expm1, inv)), x, xs, false, false, false, "log-sin-expm1-inv")
+    test_function_chain(fchain(fill(sin, 3)), x, xs, false, false, false, "fill-sin")
+
+    test_function_chain(fchain(PropertyLens{:d}(), fbcast(sqrt), IndexLens(2), log), (d = vx, c = "Hello"), [(d = vxs[1], c = "Hello"), (d = vxs[2], c = "World!")], false, true, false, "fchain with lenses")
+
+    let x = collect(0:0.02:1), xs = [collect(0:0.02:1), collect(0.01:0.02:0.99)]
+        test_function_chain(fchain([fbcast(sqrt) ∘ Base.Fix1(filter, Base.Fix2(>, 0.5)) for t in [0.5]]), x, xs, false, false, false, "array-of-filtered-1")
+        test_function_chain(fchain([fbcast(sqrt) ∘ Base.Fix1(filter, Base.Fix2(>, 0.5)) for t in [0.5, 0.8]]), x, xs, false, false, false, "array-of-filtered-2")
+        test_function_chain(fchain([fbcast(sqrt) ∘ Base.Fix1(filter, Base.Fix2(>, 0.5)) for t in [0.5, 0.8, 0.95]]), x, xs, false, false, false, "array-of-filtered-3")
+
+        test_function_chain(fchain((fbcast(sqrt) ∘ Base.Fix1(filter, Base.Fix2(>, 0.5)) for t in [0.5])), x, xs, false, false, false, "array-of-filtered-1")
+        test_function_chain(fchain((fbcast(sqrt) ∘ Base.Fix1(filter, Base.Fix2(>, 0.5)) for t in [0.5, 0.8])), x, xs, false, false, false, "array-of-filtered-2")
+        test_function_chain(fchain((fbcast(sqrt) ∘ Base.Fix1(filter, Base.Fix2(>, 0.5)) for t in [0.5, 0.8, 0.95])), x, xs, false, false, false, "array-of-filtered-3")
+    end
 
     @static if isdefined(Main, :FlexiMaps)
         @testset "FlexiMaps support" begin

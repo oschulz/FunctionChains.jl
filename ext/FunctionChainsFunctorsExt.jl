@@ -3,8 +3,8 @@
 module FunctionChainsFunctorsExt
 
 using Functors
-using FunctionChains
 
+using FunctionChains
 using FunctionChains: AsFunction
 
 @static if !isdefined(Base, :pkgversion) || pkgversion(Functors) < v"0.5"
@@ -14,6 +14,8 @@ Functors.@functor AsFunction
 Functors.@functor FunctionChain
 
 Functors.@functor FCartProd
+
+Functors.@functor FFanout
 
 end # Functors < v"0.5"
 

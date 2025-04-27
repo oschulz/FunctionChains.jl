@@ -162,18 +162,16 @@ include("testfuncs.jl")
 
     let f = fchain(Mul(rand(3,3)), Add(rand(3)), Mul(rand(3,3)))
         @test f == deepcopy(f)
+        @test f ≈ deepcopy(f)
 
-        @static if VERSION >= v"1.9"
-            @test @inferred(Adapt.adapt(Array{Float32}, f)) ≈ f
-        else
-            @test Adapt.adapt(Array{Float32}, f) ≈ f
-        end
-        @test @inferred(Adapt.adapt(Array{Float32}, f)(rand(Float32, 3))) isa Vector{Float32}
+        x = rand(Float32, 3)
+        @test @inferred(Adapt.adapt(Array{Float32}, f)) ≈ f
+        @test @inferred(Adapt.adapt(Array{Float32}, f)(x)) isa Vector{Float32}
 
         params, f_ctor = @inferred Functors.functor(f)
         @test @inferred(f_ctor(params)) == f
         @test Functors.fmap(Array{Float32}, f) ≈ f
-        @test @inferred(Functors.fmap(Array{Float32}, f)(rand(Float32, 3))) isa Vector{Float32}
+        @test @inferred(Functors.fmap(Array{Float32}, f)(x)) isa Vector{Float32}
     end
 
     x = 0.3

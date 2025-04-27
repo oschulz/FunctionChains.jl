@@ -11,6 +11,8 @@ using FunctionChains: _BCastedFC, _check_fp_sizes
 
 using Base: IteratorSize, HasShape, HasLength
 
+using Core: Typeof
+
 
 # AsFunction ==============================================================
 
@@ -25,13 +27,13 @@ _iterate_fs_withladj(::Nothing, fs, x, f_wrap) = throw(ArgumentError("Chain of f
 
 function _iterate_fs_withladj((f1, itr_state), fs, x, f_wrap)
     y_ladj = with_logabsdet_jacobian(f_wrap(f1), x)
-    y_ladj isa NoLogAbsDetJacobian && return NoLogAbsDetJacobian{FunctionChain{typeof(fs)},typeof(x)}()
+    y_ladj isa NoLogAbsDetJacobian && return NoLogAbsDetJacobian{FunctionChain{Typeof(fs)},Typeof(x)}()
     y, ladj = y_ladj
     next = iterate(fs, itr_state)
     while !isnothing(next)
         f_i, itr_state = next
         y_ladj_i = with_logabsdet_jacobian(f_wrap(f_i), y)
-        y_ladj_i isa NoLogAbsDetJacobian && return NoLogAbsDetJacobian{FunctionChain{typeof(fs)},typeof(x)}()
+        y_ladj_i isa NoLogAbsDetJacobian && return NoLogAbsDetJacobian{FunctionChain{Typeof(fs)},Typeof(x)}()
         y, ladj_i = y_ladj_i
         ladj += ladj_i
         next = iterate(fs, itr_state)
@@ -55,9 +57,9 @@ end
 
 @inline _withladj_fc(fc::FunctionChain{Tuple{F}}, x) where F = with_logabsdet_jacobian(fc._fs[1], x)
 
-@inline _withladj_fc(fc::FunctionChain{FS}, x) where {FS<:Tuple} = _withladj_fc_fs_tpl(fc._fs, x, NoLogAbsDetJacobian{typeof(fc),typeof(x)}())
+@inline _withladj_fc(fc::FunctionChain{FS}, x) where {FS<:Tuple} = _withladj_fc_fs_tpl(fc._fs, x, NoLogAbsDetJacobian{Typeof(fc),Typeof(x)}())
 
-@inline _withladj_fc(fc::FunctionChain{<:NamedTuple}, x) = _withladj_fc_fs_tpl(values(fc._fs), x, NoLogAbsDetJacobian{typeof(fc),typeof(x)}())
+@inline _withladj_fc(fc::FunctionChain{<:NamedTuple}, x) = _withladj_fc_fs_tpl(values(fc._fs), x, NoLogAbsDetJacobian{Typeof(fc),Typeof(x)}())
 
 @generated function _withladj_fc_fs_tpl(fs::FS, x, no_ladj) where {FS<:Tuple}
     n = length(eachindex(FS.parameters))
@@ -65,10 +67,10 @@ end
 end
 
 
-@inline _withladj_fc(bfc::_BCastedFC{FS}, x) where {FS<:Tuple} = _withladj_fc_fs_tpl(bfc.f._fs, x, NoLogAbsDetJacobian{typeof(fc),typeof(x)}())
+@inline _withladj_fc(bfc::_BCastedFC{FS}, x) where {FS<:Tuple} = _withladj_fc_fs_tpl(bfc.f._fs, x, NoLogAbsDetJacobian{Typeof(fc),Typeof(x)}())
 
 @inline function _withladj_fc(bfc::_BCastedFC{<:NamedTuple{names}}, x) where {names}
-    return NamedTuple{names}(_withladj_fc_fs_tpl(values(bfc.f._fs), x, NoLogAbsDetJacobian{typeof(fc),typeof(x)}()))
+    return NamedTuple{names}(_withladj_fc_fs_tpl(values(bfc.f._fs), x, NoLogAbsDetJacobian{Typeof(fc),Typeof(x)}()))
 end
 
 @generated function _withladj_bcfc_fs_tpl(fs::FS, x, no_ladj) where {FS<:Tuple}

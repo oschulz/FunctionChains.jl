@@ -168,16 +168,32 @@ export fcprod
 _fprod_onearg(fs::FS, ::Val{true}) where FS = FCartProd(fs)
 _fprod_onearg(f::F, ::Val{false}) where F = FCartProd(_typed_funcs_tuple(f))
 
-@inline fcprod(fs::Tuple{Vararg{Function}}) = FCartProd(fs)
-
 @inline fcprod(fs::Vararg{Any}) = FCartProd(_typed_funcs_tuple(fs...))
 
-function fcprod(@nospecialize(::Tuple))
-    throw(ArgumentError("Do not use fcprod(fs::Tuple) with fs elements not of type Function, due to possible type instabilities, use `fcprod(fs...)` instead."))
+
+@inline fcprod(fs::Tuple{Vararg{Function}}) = FCartProd(fs)
+
+@inline function fcprod(fs::Tuple)
+    _check_fp_contents(fs)
+    FCartProd(fs)
 end
+
+function _check_fp_contents(fs::Tuple)
+    if any(Base.Fix2(isa, Type), fs)
+        throw(ArgumentError("Do not use fcprod(fs::Tuple) with fs elements that are types, due to possible type instabilities, use `fcprod(fs...)` instead."))
+    end
+end
+
 
 @inline fcprod(fs::NamedTuple{names,<:Tuple{Vararg{Function}}}) where names = FCartProd(fs)
 
-function fcprod(@nospecialize(::NamedTuple))
-    throw(ArgumentError("Do not use fcprod(fs::NamedTuple) or fcprod(;fs...) with fs elements not of type Function, due to type instability."))
+@inline function fcprod(fs::NamedTuple)
+    _check_fp_contents(fs)
+    FCartProd(fs)
+end
+
+function _check_fp_contents(fs::NamedTuple)
+    if any(Base.Fix2(isa, Type), values(fs))
+        throw(ArgumentError("Do not use fcprod(fs::NamedTuple) with fs elements that are types, due to possible type instabilities."))
+    end
 end

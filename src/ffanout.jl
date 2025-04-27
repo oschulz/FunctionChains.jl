@@ -99,16 +99,32 @@ export ffanout
 _ffan_onearg(fs::FS, ::Val{true}) where FS = FFanout(fs)
 _ffan_onearg(f::F, ::Val{false}) where F = FFanout(_typed_funcs_tuple(f))
 
-@inline ffanout(fs::Tuple{Vararg{Function}}) = FFanout(fs)
-
 @inline ffanout(fs::Vararg{Any}) = FFanout(_typed_funcs_tuple(fs...))
 
-function ffanout(@nospecialize(::Tuple))
-    throw(ArgumentError("Do not use ffanout(fs::Tuple) with fs elements not of type Function, due to possible type instabilities, use `ffanout(fs...)` instead."))
+
+@inline ffanout(fs::Tuple{Vararg{Function}}) = FFanout(fs)
+
+@inline function ffanout(fs::Tuple)
+    _check_ff_contents(fs)
+    FFanout(fs)
 end
+
+function _check_ff_contents(fs::Tuple)
+    if any(Base.Fix2(isa, Type), fs)
+        throw(ArgumentError("Do not use ffanout(fs::Tuple) with fs elements that are types, due to possible type instabilities, use `fcprod(fs...)` instead."))
+    end
+end
+
 
 @inline ffanout(fs::NamedTuple{names,<:Tuple{Vararg{Function}}}) where names = FFanout(fs)
 
-function ffanout(@nospecialize(::NamedTuple))
-    throw(ArgumentError("Do not use ffanout(fs::NamedTuple) or ffanout(;fs...) with fs elements not of type Function, due to type instability."))
+@inline function ffanout(fs::NamedTuple)
+    _check_ff_contents(fs)
+    FFanout(fs)
+end
+
+function _check_ff_contents(fs::NamedTuple)
+    if any(Base.Fix2(isa, Type), values(fs))
+        throw(ArgumentError("Do not use ffanout(fs::NamedTuple) with fs elements that are types, due to possible type instabilities."))
+    end
 end

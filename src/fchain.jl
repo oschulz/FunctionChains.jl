@@ -335,21 +335,36 @@ export fchain
 _fchain_onearg(fs::FS, ::Val{true}) where FS = FunctionChain(fs)
 _fchain_onearg(f::F, ::Val{false}) where F = FunctionChain(_typed_funcs_tuple(f))
 
+@inline fchain(fs::Vararg{Any,N}) where N = FunctionChain(_typed_funcs_tuple(fs...))
+
+
 @inline fchain(fs::Tuple{Vararg{Function, N}}) where N = FunctionChain(fs)
 
 function fchain(fs::Tuple{Vararg{Any, N}}) where N
-    @info "DEBUG" typeof(fs)
-    Base.depwarn("fchain(fs::Tuple) with fs elements not of type Function is deprecated due to possible type instabilities, use `fchain(fs...)` instead.", :fchain)
+    _check_fc_contents(fs)
     fchain(fs...)
 end
 
-@inline fchain(fs::Vararg{Any,N}) where N = FunctionChain(_typed_funcs_tuple(fs...))
+function _check_fc_contents(fs::Tuple)
+    if any(Base.Fix2(isa, Type), fs)
+        Base.depwarn("fchain(fs::Tuple) with fs elements not of type Function is deprecated due to possible type instabilities, use `fchain(fs...)` instead.", :fchain)
+    end
+end
+
 
 @inline fchain(fs::NamedTuple{names,<:Tuple{Vararg{Function}}}) where names = FunctionChain(fs)
 
-function fchain(@nospecialize(fs::NamedTuple))
-    throw(ArgumentError("Do not use fchain(fs::NamedTuple) or fchain(;fs...) with fs elements not of type Function, due to type instability."))
+@inline function fchain(fs::NamedTuple)
+    _check_fc_contents(fs)
+    FunctionChain(fs)
 end
+
+function _check_fc_contents(fs::NamedTuple)
+    if any(Base.Fix2(isa, Type), values(fs))
+        throw(ArgumentError("Do not use fchain(fs::NamedTuple) with fs elements that are types, due to possible type instabilities."))
+    end
+end
+
 
 
 # InverseFunctions support

@@ -4,6 +4,7 @@ using FunctionChains
 using Test
 
 using AffineMaps
+import Adapt, Functors
 
 @testset "ffanout" begin
     function test_function_fanout(ff, x, label::AbstractString)
@@ -39,4 +40,18 @@ using AffineMaps
     test_function_fanout(ffanout(fs_vector), x, "Vector of functions")
     test_function_fanout(ffanout(fs_array), x, "Array of functions")
     test_function_fanout(ffanout(fs_nested), x, "Array of functions")
+
+    let f = ffanout(Mul(rand(3,3)), Add(rand(3)), Mul(rand(3,3)))
+        @test f == deepcopy(f)
+        @test f ≈ deepcopy(f)
+
+        x = rand(Float32, 3)
+        @test @inferred(Adapt.adapt(Array{Float32}, f)) ≈ f
+        @test @inferred(Adapt.adapt(Array{Float32}, f)(x)) isa NTuple{3,Vector{Float32}}
+
+        params, f_ctor = @inferred Functors.functor(f)
+        @test @inferred(f_ctor(params)) == f
+        @test Functors.fmap(Array{Float32}, f) ≈ f
+        @test @inferred(Functors.fmap(Array{Float32}, f)(x)) isa NTuple{3,Vector{Float32}}
+    end
 end

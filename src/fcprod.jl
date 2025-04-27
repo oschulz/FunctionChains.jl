@@ -32,6 +32,9 @@ export FCartProd
 
 fcprodfs(fp::FCartProd) = getfield(fp, :_fs)
 
+Base.:(==)(a::FCartProd, b::FCartProd) = a._fs == b._fs
+Base.isapprox(a::FCartProd, b::FCartProd; kwargs...) = _isapprox(a._fs, b._fs; kwargs...)
+
 function Base.show(io::IO, m::MIME"text/plain", fp::FCartProd{<:Tuple})
     print(io, "fcprod")
     show(io, m, fp._fs)

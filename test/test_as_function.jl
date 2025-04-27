@@ -6,6 +6,7 @@ using Test
 using AffineMaps
 using InverseFunctions
 using ChangesOfVariables
+import Adapt, Functors
 
 include("testfuncs.jl")
 
@@ -59,4 +60,18 @@ include("testfuncs.jl")
     @test !(asf_mul.f.A === asf_mul_2.f.A)
     @test @inferred(asf_mul == asf_mul_2)
     @test @inferred(isapprox(asf_mul, asf_mul_2, rtol = 1e-5))
+
+    let f = FunctionChains.AsFunction(Mul(rand(3,3)))
+        @test f == deepcopy(f)
+        @test f ≈ deepcopy(f)
+
+        x = rand(Float32, 3)
+        @test @inferred(Adapt.adapt(Array{Float32}, f)) ≈ f
+        @test @inferred(Adapt.adapt(Array{Float32}, f)(x)) isa Vector{Float32}
+
+        params, f_ctor = @inferred Functors.functor(f)
+        @test @inferred(f_ctor(params)) == f
+        @test Functors.fmap(Array{Float32}, f) ≈ f
+        @test @inferred(Functors.fmap(Array{Float32}, f)(x)) isa Vector{Float32}
+    end
 end

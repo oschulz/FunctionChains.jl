@@ -11,6 +11,7 @@ import ForwardDiff
 import FlexiMaps
 
 include("getjacobian.jl")
+include("approx_cmp.jl")
 include("testfuncs.jl")
 
 @testset "function_chain" begin
@@ -39,19 +40,19 @@ include("testfuncs.jl")
             @test @inferred(fc(x)) == cf(x)
 
             y_out = @inferred fc(x)
-            ys_out = @inferred with_intermediate_results(fc, x)
+            interm_ys_out = @inferred with_intermediate_results(fc, x)
 
-            @test ys_out == ref_wir(fc, x)
+            @test interm_ys_out == ref_wir(fc, x)
 
-            ys_out_values = if fchainfs(fc) isa NamedTuple
-                @test propertynames(ys_out) == propertynames(fchainfs(fc))
-                values(ys_out)
+            interm_ys_out_vals = if fchainfs(fc) isa NamedTuple
+                @test propertynames(interm_ys_out) == propertynames(fchainfs(fc))
+                values(interm_ys_out)
             else
-                ys_out
+                interm_ys_out
             end
-        
+
             y_ref = x   
-            for (f_i, y_out_i) in zip(fchainfs(fc), ys_out_values)
+            for (f_i, y_out_i) in zip(fchainfs(fc), interm_ys_out_vals)
                 y_ref = f_i(y_ref)
                 @test y_out_i == y_ref
             end
@@ -61,7 +62,7 @@ include("testfuncs.jl")
                 @test @inferred(inverse(fc)) isa FunctionChain
                 inv_cf = inverse(cf)
                 @test @inferred(inverse(fc)(x)) == inv_cf(x)
-                InverseFunctions.test_inverse(fc, x)
+                InverseFunctions.test_inverse(fc, x; compare = approx_cmp)
             else
                 @test @inferred(inverse(fc)) isa NoInverse
             end
@@ -75,13 +76,20 @@ include("testfuncs.jl")
             end
 
             if !isnothing(xs)
-                refbc_f_tpl = fbcast_fc2cf(fc)
+                bc_cf = fbcast_fc2cf(fc)
                 @test @inferred(broadcast(fc, (xs))) == cf.(xs)
                 @test @inferred(fbcast(fc)(xs)) == cf.(xs)
                 @test @inferred(with_intermediate_results(fbcast(fc), xs)) == ref_wir_bc(fc, xs)
+                bc_fc = fbcast(fc)
+                if invertible
+                    inv_bc_fc = @inferred(inverse(bc_fc))
+                    inv_bc_cf = inverse(bc_cf)
+                    @test @inferred(inv_bc_fc(xs)) == inv_bc_cf(xs)
+                    InverseFunctions.test_inverse(bc_fc, xs; compare = approx_cmp)
+                end
                 if with_ladj
-                    ly, ladj = @inferred(with_logabsdet_jacobian(fbcast(fc), xs))
-                    ly_ref, ladj_ref = with_logabsdet_jacobian(refbc_f_tpl, xs)
+                    ly, ladj = @inferred(with_logabsdet_jacobian(bc_fc, xs))
+                    ly_ref, ladj_ref = with_logabsdet_jacobian(bc_cf, xs)
                     @test ly == ly_ref
                     @test ladj ≈ ladj_ref
                 end              

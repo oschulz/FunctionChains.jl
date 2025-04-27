@@ -5,14 +5,16 @@ using Test
 
 using InverseFunctions: inverse, NoInverse, test_inverse
 using ChangesOfVariables: with_logabsdet_jacobian, NoLogAbsDetJacobian, test_with_logabsdet_jacobian
+using Accessors: set, PropertyLens, IndexLens
 
 using AffineMaps
 
 include("approx_cmp.jl")
 include("getjacobian.jl")
+include("modify_output.jl")
 
 @testset "fcprod" begin
-    function test_function_product(fp, x, invertible::Bool, with_ladj::Bool, label::AbstractString)
+    function test_function_product(fp, x, invertible::Bool, settable::Bool, with_ladj::Bool, label::AbstractString)
         @testset "$label" begin
             @test @inferred(fcprodfs(fp)) === getfield(fp, :_fs)
             
@@ -22,12 +24,18 @@ include("getjacobian.jl")
             rf = x -> map(applyf, fcprodfs(fp), x)
 
             @test @inferred(fp(x)) == rf(x)
+            y_out = fp(x)
 
             if invertible
                 @test @inferred(inverse(fp)) isa FCartProd
                 test_inverse(fp, x, compare = approx_cmp)
             else
                 @test @inferred(inverse(fp)) isa NoInverse{typeof(fp)}
+            end
+
+            if settable
+                new_y = modify_output(y_out)
+                @test @inferred(set(x, fp, new_y)) == map(set, x, fp._fs, new_y)
             end
 
             if with_ladj
@@ -90,24 +98,58 @@ include("getjacobian.jl")
     )
 
 
-    test_function_product(fcprod(fs_tpl), x_tpl, true, true, "Tuple of functions")
-    test_function_product(fcprod(fs_tpl...), x_tpl, true, true, "Splat tuple of functions")
-    test_function_product(fcprod(fs_nt), x_nt, true, true, "NamedTuple of functions")
-    test_function_product(fcprod(fs_vector), x_vector, true, true, "Vector of functions")
-    test_function_product(fcprod(fs_array), x_array, true, true, "Array of functions")
-    test_function_product(fcprod(fs_nested), x_nested, true, true, "Array of functions")
+    test_function_product(fcprod(fs_tpl), x_tpl, true, true, true, "Tuple of functions")
+    test_function_product(fcprod(fs_tpl...), x_tpl, true, true, true, "Splat tuple of functions")
+    test_function_product(fcprod(fs_nt), x_nt, true, true, true, "NamedTuple of functions")
+    test_function_product(fcprod(fs_vector), x_vector, true, true, true, "Vector of functions")
+    test_function_product(fcprod(fs_array), x_array, true, true, true, "Array of functions")
+    test_function_product(fcprod(fs_nested), x_nested, true, true, true, "Array of functions")
 
-    test_function_product(fcprod(fs_tpl_noinv), x_tpl, false, false, "Non-Inv Tuple of functions")
-    test_function_product(fcprod(fs_tpl_noinv...), x_tpl, false, false, "Non-Inv Splat tuple of functions")
-    test_function_product(fcprod(fs_nt_noinv), x_nt, false, false, "Non-Inv NamedTuple of functions")
-    test_function_product(fcprod(fs_vector_noinv), x_vector, false, false, "Non-Inv Vector of functions")
-    test_function_product(fcprod(fs_array_noinv), x_array, false, false, "Non-Inv Array of functions")
-    test_function_product(fcprod(fs_nested_noinv), x_nested, false, false, "Non-Inv Array of functions")
+    test_function_product(fcprod(fs_tpl_noinv), x_tpl, false, false, false, "Non-Inv Tuple of functions")
+    test_function_product(fcprod(fs_tpl_noinv...), x_tpl, false, false, false, "Non-Inv Splat tuple of functions")
+    test_function_product(fcprod(fs_nt_noinv), x_nt, false, false, false, "Non-Inv NamedTuple of functions")
+    test_function_product(fcprod(fs_vector_noinv), x_vector, false, false, false, "Non-Inv Vector of functions")
+    test_function_product(fcprod(fs_array_noinv), x_array, false, false, false, "Non-Inv Array of functions")
+    test_function_product(fcprod(fs_nested_noinv), x_nested, false, false, false, "Non-Inv Array of functions")
 
-    test_function_product(fcprod(fs_tpl_identity), x_tpl, true, true, "Non-Inv Tuple of functions")
-    test_function_product(fcprod(fs_tpl_identity...), x_tpl, true, true, "Non-Inv Splat tuple of functions")
-    test_function_product(fcprod(fs_nt_identity), x_nt, true, true, "Non-Inv NamedTuple of functions")
-    test_function_product(fcprod(fs_vector_identity), x_vector, true, true, "Non-Inv Vector of functions")
-    test_function_product(fcprod(fs_array_identity), x_array, true, true, "Non-Inv Array of functions")
-    test_function_product(fcprod(fs_nested_identity), x_nested, true, true, "Non-Inv Array of functions")
+    test_function_product(fcprod(fs_tpl_identity), x_tpl, true, true, true, "Non-Inv Tuple of functions")
+    test_function_product(fcprod(fs_tpl_identity...), x_tpl, true, true, true, "Non-Inv Splat tuple of functions")
+    test_function_product(fcprod(fs_nt_identity), x_nt, true, true, true, "Non-Inv NamedTuple of functions")
+    test_function_product(fcprod(fs_vector_identity), x_vector, true, true, true, "Non-Inv Vector of functions")
+    test_function_product(fcprod(fs_array_identity), x_array, true, true, true, "Non-Inv Array of functions")
+    test_function_product(fcprod(fs_nested_identity), x_nested, true, true, true, "Non-Inv Array of functions")
+
+    test_function_product(
+        fcprod(
+            fchain(PropertyLens{:d}(), exp),
+            sqrt,
+            IndexLens(2)
+        ),
+        (
+            (d = 4.2, c = "Hello"),
+            42,
+            [3, 5, 2]
+        ),
+        false, true, false, "fcprod with lenses"
+    )
+
+    test_function_product(
+        fcprod((
+            c = fchain(PropertyLens{:d}(), exp),
+            d = sqrt,
+            e = IndexLens(2)
+        )),
+        (
+            c = (d = 4.2, c = "Hello"),
+            d = 42,
+            e = [3, 5, 2]
+        ),
+        false, true, false, "fcprod with lenses"
+    )
+
+    test_function_product(
+        fcprod([log ∘ IndexLens(i) for i in[2,4,5]]), 
+        [rand(10) for i in 1:3],
+        false, true, false, "fcprod with lenses"
+    )
 end

@@ -7,9 +7,14 @@ using Accessors: set
 
 using InverseFunctions: inverse, NoInverse
 
+using Base: IteratorSize
+
 using FunctionChains
 using FunctionChains: _fc_fs_tpl_expr, _BCastedFC, _iterate_fs_withintermediate
- 
+using FunctionChains: _check_fp_sizes
+
+
+# FunctionChain ==============================================================
 
 Accessors.set(x, fc::FunctionChain, z) = _set_maybe_withinverse(fc, inverse(fc), x, z)
 Accessors.set(x, fc::_BCastedFC, z) = _set_maybe_withinverse(fc, inverse(fc), x, z)
@@ -79,6 +84,44 @@ end
 
 _without_last(fs::AbstractArray) = view(fs, firstindex(fs):lastindex(fs)-1)
 _without_last(fs) = Iterators.take(fs, length(fs)-1)
+
+
+# FCartProd ==============================================================
+
+Accessors.set(x, fp::FCartProd, z) = _fp_set(fp._fs, x, z)
+
+
+function _fp_set(fs::Tuple{Vararg{Any,N}}, x::Tuple{Vararg{Any,N}}, z::Tuple{Vararg{Any,N}}) where N
+    map(set, x, fs, z)
+end
+
+_fp_set(::Tuple{Vararg{typeof(identity),N}}, @nospecialize(x::Tuple{Vararg{Any,N}}), z::Tuple{Vararg{Any,N}}) where N = z
+
+function _fp_set(@nospecialize(fs::Tuple), @nospecialize(x::Tuple), @nospecialize(z::Tuple))
+    throw(ArgumentError("Can't Accessors.set a Tuple of length $(length(x)) via FCartProd over Tuple of length $(length(fs)) with a Tuple of length $(length(z))."))
+end
+
+
+function _fp_set(fs::NamedTuple{names}, x::NamedTuple{names}, z::NamedTuple{names}) where names
+    NamedTuple{names}(map(set, values(x), values(fs), values(z)))
+end
+
+_fp_set(::NamedTuple{names,<:Tuple{Vararg{typeof(identity)}}}, x::NamedTuple{names}, @nospecialize(z::NamedTuple{names})) where names = z
+
+function _fp_set(@nospecialize(fs::NamedTuple), @nospecialize(x::NamedTuple), @nospecialize(z::NamedTuple))
+    throw(ArgumentError("Can't Accessors.set a NamedTuple with names $(propertynames(x)) via FCartProd over NamedTuple with names $(propertynames(fs)) with a NamedTuple with names $(propertynames(z))."))
+end
+
+
+Base.@propagate_inbounds function _fp_set(fs, x, z)
+    @boundscheck _check_fp_sizes(IteratorSize(fs), IteratorSize(x), fs, x)
+    @inbounds result = _fp_set_generic_impl(fs, x, z)
+    return result
+end
+
+Base.@propagate_inbounds _fp_set_generic_impl(fs, x, z) = set.(x, fs, z)
+
+_fp_set_generic_impl(::AbstractArray{typeof(identity)}, @nospecialize(x), z) = z
 
 
 end # module FunctionChainsAccessorsExt

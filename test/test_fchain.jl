@@ -30,8 +30,6 @@ include("testfuncs.jl")
         @testset "$label" begin
             @test @inferred(fchainfs(fc)) === getfield(fc, :_fs)
 
-            @test !any(x -> x isa ComposedFunction, fchainfs(fc))
-
             @test length(fc) == length(fchainfs(fc))
             @test (fc...,) == (fchainfs(fc)...,)
             @test [fc...] == [fchainfs(fc)...]

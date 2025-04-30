@@ -252,6 +252,80 @@ function _fc_fs_tpl_expr(
 end
 
 
+
+function _apply_functions_chained_expr(
+    n::Integer;
+    f_apply::Union{Symbol,Expr} = :applyf, postproc::Union{Symbol,Expr} = :identity,
+    reduction::Symbol = :last
+)
+    if n > 0
+        expr = Expr(:block)
+        y_syms = Symbol.(:y, 1:n)
+        for i in 1:n
+            y_i, x_i = y_syms[i], (i > 1 ? y_syms[i-1] : :x)
+            if f_apply == :applyf
+                push!(expr.args, :($y_i = fs[$i]($x_i)))
+            else
+                push!(expr.args, :($y_i = ($f_apply)(fs[$i], $x_i)))
+            end
+        end
+        results = if postproc == :identity
+            y_syms
+        else
+            map(ysym -> :($postproc($ysym)), y_syms)
+        end
+        if reduction == :last
+            push!(expr.args, :(return $(last(results))))
+        elseif reduction == :identity
+            push!(expr.args, :(return ($(results...),)))
+        else
+            z = reduction()
+            pop!(expr.args)
+            for i in n:-1:1
+                y_sym = i > 1 ? y_syms[i-1] : :x
+                new_y_sym = i < n ? Symbol.(:new_y, i) : :z
+                new_x_sym = i > 1 ? Symbol.(:new_y, i-1) : :new_x
+                if f_apply == :applyf
+                    push!(expr.args, :($new_x_sym = Accessors.set($y_sym, fs[$i], $new_y_sym))) #!!!!!!!
+                elseif f_apply == :(Base.broadcast)
+                    push!(expr.args, :($new_x_sym = Accessors.set($y_sym, fbcast(fs[$i]), $new_y_sym)))
+                else
+                    throw(ArgumentError("Invalid f_apply: $f_apply"))
+                end
+            end
+            push!(expr.args, :(return new_x))
+        return expr
+    else
+        if reduction == :last
+            return :(return x)
+        elseif reduction == :identity
+            return :(return (x,))
+        else
+            return :($reduction())
+        end
+    end
+
+    return expr
+end
+
+
+@generated function apply_functions_chained(fs::FS, x) where {FS<:Tuple}
+    n = length(eachindex(FS.parameters))
+    return _apply_functions_chained_expr(n)
+end
+
+
+struct FoldR{F,T} <: Function
+    f_combine::F
+    y_init::T
+end
+
+(f_foldr::FoldR)() = f_foldr.y_init
+(f_foldr::FoldR)(x) = f_foldr.f_combine(f_foldr.y_init, x)
+
+
+
+
 @inline (fc::FunctionChain{Tuple{}})(x) = x
 
 @inline (fc::FunctionChain{Tuple{F}})(x) where F = fc._fs[1](x)

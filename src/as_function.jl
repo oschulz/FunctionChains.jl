@@ -5,6 +5,9 @@
 
 Wraps a callable object to make it a `Function`.
 
+In contrast to [`FNoBCSpec`](@ref), `AsFunction` inherits broadcasting
+specialization from the wrapped callable object.
+
 User code should typically not instantiate `AsFunction` objects directly,
 but use [`asfunction(f)`](@ref) instead.
 """
@@ -12,7 +15,7 @@ struct AsFunction{F} <: Function
     f::F
 end
 # Ensure type stability if function is a type (constructor):
-AsFunction(::Type{T}) where T = AsFunction{Type{T}}(T) # For type stability if 
+AsFunction(::Type{T}) where T = AsFunction{Type{T}}(T)
 
 Base.:(==)(a::AsFunction, b::AsFunction) = a.f == b.f
 Base.isapprox(a::AsFunction, b::AsFunction; kwargs...) = isapprox(a.f, b.f; kwargs...)

@@ -30,11 +30,18 @@ with_intermediate_results(f, x) = (f(x),)
 
 _typed_funcs_tuple(fs::Vararg{Function,N}) where N = (fs...,)
 
+function _type_callable_arg(T::Type)
+    if isdefined(Core, :TypeEgal) && Base.isType(T)
+        return Type{Base.type_parameter(T)}
+    end
+    return T
+end
+
 @inline @generated function _typed_funcs_tuple(fs::Vararg{Any,N}) where N
     expr = Expr(:tuple)
     for i in 1:N
         if fs[i] <: Type
-            push!(expr.args, :(AsFunction{$(fs[i])}(fs[$i])))
+            push!(expr.args, :(AsFunction{$(_type_callable_arg(fs[i]))}(fs[$i])))
         # Future option (breaking) - flatten FunctionChains:
         # elseif fs[i] <: FunctionChain{<:Tuple}
         #    push!(expr.args, :(fs[$i]._fs...))
@@ -438,7 +445,11 @@ export ffchain
     expr = Expr(:tuple)
     for i in 1:N
         if !(fs[i] <: typeof(identity))
-            push!(expr.args, :(_flat_fs(fs[$i])...))
+            if fs[i] <: Type
+                push!(expr.args, :((AsFunction{$(_type_callable_arg(fs[i]))}(fs[$i]),)...))
+            else
+                push!(expr.args, :(_flat_fs(fs[$i])...))
+            end
         end
     end
     if length(expr.args) == 0

@@ -113,6 +113,7 @@ include("testfuncs.jl")
         @test @inferred(fchain((log, exp))) isa FunctionChain
         @test @inferred(fchain(a = log, c = exp)) isa FunctionChain
         @test @inferred(fchain((a = log, c = exp))) isa FunctionChain
+        @test fchainfs(@inferred(fchain(Int, Float32))) isa Tuple{FunctionChains.AsFunction{Type{Int}}, FunctionChains.AsFunction{Type{Float32}}}
         @test @inferred(fchain([log, exp])) isa FunctionChain
         @test @inferred(fchain(log, ForwardDiff.Dual)) isa FunctionChain
         @test @inferred(fchain(log, AbstractFloat)) isa FunctionChain

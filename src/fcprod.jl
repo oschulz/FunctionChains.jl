@@ -18,9 +18,8 @@ export fcprodfs
 Represents a
 [Cartesian product of functions](https://en.wikipedia.org/wiki/Cartesian_product#Cartesian_product_of_functions).
 
-Use``
-A `FCartProd` has a single field `fs` which may be a `Tuple`, `NamedTuple`, an
-array or a generator/iterator of functions.
+A `FCartProd` has a single field `_fs` which may be a `Tuple`, `NamedTuple`,
+an array or a generator/iterator of functions.
 
 Use [`fcprod`](@ref) to construct products of functions instead of using the
 constructor `FCartProd(fs)` directly.
@@ -155,7 +154,7 @@ generator/iterator of functions.
 ```julia
 fcprod((f_a, f_b, ...))((x_a, x_b, ...)) = (f_a(x_a), f_b(x_b), ...)
 fcprod((a = f_a, b = f_b, ...))((a = x_a, b = x_b, ...)) = (a = f_a(x_a), b = f_b(x_b), ...)
-fcprod([f_a, f_b, ...])([x_a, x_b, ...]) = [f_a(x_a), f_b(x_b, ...)]
+fcprod([f_a, f_b, ...])([x_a, x_b, ...]) = [f_a(x_a), f_b(x_b), ...]
 ```
 
 This is similar, semantically, to Haskell's `***` for arrows.

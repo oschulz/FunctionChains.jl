@@ -39,7 +39,7 @@ The type of the returned function depends on `n`:
 * `n == 1`: return `f`
 * `n > 1`: return `frepeat(f, n)`
 * `n == -1`: return `InverseFunctions.inverse(f)`
-* `n > -1`: return `frepeat(InverseFunctions.inverse(f), -n)`
+* `n < -1`: return `frepeat(InverseFunctions.inverse(f), -n)`
 """
 @inline function ∘̂(f, n::Integer)
     if n == 0

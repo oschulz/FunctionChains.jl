@@ -17,8 +17,7 @@ export ffanoutfs
 
 Represents a function fanout.
 
-Use``
-A `FFanout` has a single field `fs` which may be a `Tuple`, `NamedTuple`, an
+A `FFanout` has a single field `_fs` which may be a `Tuple`, `NamedTuple`, an
 array or a generator/iterator of functions.
 
 Use [`ffanout`](@ref) to construct a function fanout instead of using the
@@ -92,10 +91,10 @@ The resulting function fanout behaves like
 ```julia
 ffanout((f_a, f_b, ...))(x) = (f_a(x), f_b(x), ...)
 ffanout((a = f_a, b = f_b, ...))(x) = (a = f_a(x), b = f_b(x), ...)
-ffanout([f_a, f_b, ...])(x) = [f_a(x), f_b(x, ...)]
+ffanout([f_a, f_b, ...])(x) = [f_a(x), f_b(x), ...]
 ```
 
-For `ff = ffanout(fs)`, use [`ffanoutfs(fc)`](@ref) to retrieve `fs`.
+For `ff = ffanout(fs)`, use [`ffanoutfs(ff)`](@ref) to retrieve `fs`.
 """
 function ffanout end
 export ffanout

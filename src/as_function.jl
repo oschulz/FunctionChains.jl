@@ -12,7 +12,7 @@ struct AsFunction{F} <: Function
     f::F
 end
 # Ensure type stability if function is a type (constructor):
-AsFunction(::Type{T}) where T = AsFunction{Type{T}}(T) # For type stability if 
+AsFunction(::Type{T}) where T = AsFunction{Type{T}}(T)
 
 Base.:(==)(a::AsFunction, b::AsFunction) = a.f == b.f
 Base.isapprox(a::AsFunction, b::AsFunction; kwargs...) = isapprox(a.f, b.f; kwargs...)
@@ -35,7 +35,7 @@ InverseFunctions.inverse(ff::AsFunction) = _typestable_func(InverseFunctions.inv
 
 Wraps a callable `f` to make it a `Function`.
 
-If `f isa Function`, simply returns f. If `f` is A
+If `f isa Function`, simply returns `f`. If `f` is a
 type (constructor), returns a properly typed function
 object.
 """

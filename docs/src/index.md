@@ -89,7 +89,7 @@ fp((a = 4, b = 5))
 
 ## Function fanouts
 
-A function fanout applies some kind of collection a functions to single input, separately, resulting in a collection of the outputs:
+A function fanout applies some kind of collection of functions to a single input, separately, resulting in a collection of the outputs:
 
 ```jldoctest intro_example
 fp = ffanout([Base.Fix1(*, 2), Base.Fix1(*, 3), Base.Fix1(*, 4)])

@@ -34,6 +34,12 @@ ffanoutfs(ff::FFanout) = getfield(ff, :_fs)
 Base.:(==)(a::FFanout, b::FFanout) = a._fs == b._fs
 Base.isapprox(a::FFanout, b::FFanout; kwargs...) = _isapprox(a._fs, b._fs; kwargs...)
 
+function Base.show(io::IO, m::MIME"text/plain", ff::FFanout)
+    print(io, "ffanout(")
+    show(io, m, ff._fs)
+    print(io, ")")
+end
+
 function Base.show(io::IO, m::MIME"text/plain", ff::FFanout{<:Tuple})
     print(io, "ffanout")
     show(io, m, ff._fs)

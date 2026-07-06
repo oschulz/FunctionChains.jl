@@ -22,6 +22,7 @@ ChangesOfVariables.with_logabsdet_jacobian(ff::AsFunction, x) = with_logabsdet_j
 # FunctionChain ==============================================================
 
 @inline ChangesOfVariables.with_logabsdet_jacobian(fc::FunctionChain, x) = _withladj_fc(fc, x)
+@inline ChangesOfVariables.with_logabsdet_jacobian(bfc::_BCastedFC, x) = _withladj_fc(bfc, x)
 
 _iterate_fs_withladj(::Nothing, fs, x, f_wrap) = throw(ArgumentError("Chain of functions must not be an empty iterable"))
 
@@ -67,11 +68,9 @@ end
 end
 
 
-@inline _withladj_fc(bfc::_BCastedFC{FS}, x) where {FS<:Tuple} = _withladj_fc_fs_tpl(bfc.f._fs, x, NoLogAbsDetJacobian{Typeof(fc),Typeof(x)}())
+@inline _withladj_fc(bfc::_BCastedFC{FS}, x) where {FS<:Tuple} = _withladj_bcfc_fs_tpl(bfc.f._fs, x, NoLogAbsDetJacobian{Typeof(bfc),Typeof(x)}())
 
-@inline function _withladj_fc(bfc::_BCastedFC{<:NamedTuple{names}}, x) where {names}
-    return NamedTuple{names}(_withladj_fc_fs_tpl(values(bfc.f._fs), x, NoLogAbsDetJacobian{Typeof(fc),Typeof(x)}()))
-end
+@inline _withladj_fc(bfc::_BCastedFC{<:NamedTuple}, x) = _withladj_bcfc_fs_tpl(values(bfc.f._fs), x, NoLogAbsDetJacobian{Typeof(bfc),Typeof(x)}())
 
 @generated function _withladj_bcfc_fs_tpl(fs::FS, x, no_ladj) where {FS<:Tuple}
     n = length(eachindex(FS.parameters))

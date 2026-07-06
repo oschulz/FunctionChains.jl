@@ -1,10 +1,6 @@
 # This file is a part of FunctionChains.jl, licensed under the MIT License (MIT).
 
 
-_zeroladj(::Type{T}) where {T<:Real} = zero(T)
-_zeroladj(::Type{<:AbstractArray{T}}) where {T<:Real} = zero(T)
-_zeroladj(::Type) = 0
-
 _similar_empty(A::AbstractVector, ::Type{T}) where T = similar(A, T, 0)
 _similar_empty(A::Any, ::Type{T}) where T = T[]
 

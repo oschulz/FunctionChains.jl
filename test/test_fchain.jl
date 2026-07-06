@@ -232,6 +232,13 @@ include("testfuncs.jl")
         test_function_chain(fchain((fbcast(sqrt) ∘ Base.Fix1(filter, Base.Fix2(>, 0.5)) for t in [0.5, 0.8, 0.95])), x, xs, false, false, false, "array-of-filtered-3")
     end
 
+    # Non-invertible but settable iterable-backed chain:
+    let fc = fchain(Function[Mul(2.0), abs])
+        @test inverse(fc) isa NoInverse
+        @test set(0.3, fc, 0.9) == set(0.3, abs ∘ Mul(2.0), 0.9)
+        @test set([0.3, -0.4], fbcast(fc), [0.9, 0.8]) == set.([0.3, -0.4], Ref(abs ∘ Mul(2.0)), [0.9, 0.8])
+    end
+
     @static if isdefined(Main, :FlexiMaps)
         @testset "FlexiMaps support" begin
             @test @inferred(FlexiMaps.islinear(fchain(Mul(4), Mul(3)))) == true

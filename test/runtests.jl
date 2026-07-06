@@ -3,7 +3,8 @@
 import Test
 
 Test.@testset "Package FunctionChains" begin
-    # include("test_aqua.jl")
+    include("test_aqua.jl")
+    include("test_as_function.jl")
     include("test_applyf.jl")
     include("test_fbcast.jl")
     include("test_fchain.jl")

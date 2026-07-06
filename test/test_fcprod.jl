@@ -6,6 +6,7 @@ using Test
 using InverseFunctions: inverse, NoInverse, test_inverse
 using ChangesOfVariables: with_logabsdet_jacobian, NoLogAbsDetJacobian, test_with_logabsdet_jacobian
 using Accessors: set, PropertyLens, IndexLens
+import Adapt, Functors
 
 using AffineMaps
 

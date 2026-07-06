@@ -51,7 +51,7 @@ Base.show(io::IO, fp::FCartProd) = show(io, MIME"text/plain"(), fp)
 Base.merge(a::NamedTuple, fp::FCartProd{<:NamedTuple{names}}) where {names} = merge(a, fp._fs)
 
 Base.merge(a::FCartProd{<:NamedTuple}) = a
-function Base.merge(a::FCartProd{<:NamedTuple}{names}, b::FCartProd{<:NamedTuple}, cs::FCartProd{<:NamedTuple}...) where {names}
+function Base.merge(a::FCartProd{<:NamedTuple}, b::FCartProd{<:NamedTuple}, cs::FCartProd{<:NamedTuple}...)
     return merge(fcprod(; a..., b...), cs...)
 end
 

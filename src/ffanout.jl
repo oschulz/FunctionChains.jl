@@ -50,7 +50,7 @@ Base.show(io::IO, ff::FFanout) = show(io, MIME"text/plain"(), ff)
 Base.merge(a::NamedTuple, ff::FFanout{<:NamedTuple{names}}) where {names} = merge(a, ff._fs)
 
 Base.merge(a::FFanout{<:NamedTuple}) = a
-function Base.merge(a::FFanout{<:NamedTuple}{names}, b::FFanout{<:NamedTuple}, cs::FFanout{<:NamedTuple}...) where {names}
+function Base.merge(a::FFanout{<:NamedTuple}, b::FFanout{<:NamedTuple}, cs::FFanout{<:NamedTuple}...)
     return merge(ffanout(; a..., b...), cs...)
 end
 

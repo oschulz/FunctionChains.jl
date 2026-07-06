@@ -62,7 +62,7 @@ Base.iterate(fp::FCartProd, state) = iterate(fp._fs, state)
 
 (::FCartProd{<:Tuple{Vararg{typeof(identity),N}}})(x::Tuple{Vararg{Any,N}}) where N = x
 
-function (@nospecialize(fs::FCartProd{<:Tuple}))(@nospecialize(x::Tuple))
+function (@nospecialize(fp::FCartProd{<:Tuple}))(@nospecialize(x::Tuple))
     throw(ArgumentError("Can't apply FCartProd over Tuple of length $(length(fp._fs)) to Tuple of length $(length(x))."))
 end
 
@@ -73,7 +73,7 @@ end
 
 (::FCartProd{<:NamedTuple{names,<:Tuple{Vararg{typeof(identity)}}}})(x::NamedTuple{names}) where names = x
 
-function (@nospecialize(fs::FCartProd{<:NamedTuple}))(@nospecialize(x::NamedTuple))
+function (@nospecialize(fp::FCartProd{<:NamedTuple}))(@nospecialize(x::NamedTuple))
     throw(ArgumentError("Can't apply FCartProd over NamedTuple with names $(propertynames(fp._fs)) to NamedTuple with names $(propertynames(x))."))
 end
 

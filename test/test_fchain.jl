@@ -159,6 +159,8 @@ include("testfuncs.jl")
 
         @test @inferred(fchain(a = sin, x = cos, c = tan) ∘ fchain(e = log, d = exp)) == FunctionChain((e = log, d = exp, a = sin, x = cos, c = tan))
         @test @inferred(fchain(a = sin, x = cos, c = tan) ∘ fchain(e = log, x = exp)) == FunctionChain((FunctionChain((e = log, x = exp)), FunctionChain((a = sin, x = cos, c = tan))))
+
+        @test @inferred(convert(FunctionChain, log ∘ exp)) == fchain(exp, log)
     end
 
     let f = fchain(Mul(rand(3,3)), Add(rand(3)), Mul(rand(3,3)))

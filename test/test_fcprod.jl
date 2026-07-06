@@ -119,6 +119,11 @@ include("modify_output.jl")
     test_function_product(fcprod(fs_array_identity), x_array, true, true, true, "Non-Inv Array of functions")
     test_function_product(fcprod(fs_nested_identity), x_nested, true, true, true, "Non-Inv Array of functions")
 
+    @test_throws ArgumentError fcprod(log, exp)((0.4, 0.5, 0.6))
+    @test_throws ArgumentError fcprod(a = log, b = exp)((a = 0.4, c = 0.5))
+    @test_throws ArgumentError with_logabsdet_jacobian(fcprod(log, exp), (0.4, 0.5, 0.6))
+    @test_throws ArgumentError with_logabsdet_jacobian(fcprod(a = log, b = exp), (a = 0.4, c = 0.5))
+
     test_function_product(
         fcprod(
             fchain(PropertyLens{:d}(), exp),

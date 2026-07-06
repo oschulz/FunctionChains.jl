@@ -114,7 +114,7 @@ end
 
 function _check_ff_contents(fs::Tuple)
     if any(Base.Fix2(isa, Type), fs)
-        throw(ArgumentError("Do not use ffanout(fs::Tuple) with fs elements that are types, due to possible type instabilities, use `fcprod(fs...)` instead."))
+        throw(ArgumentError("Do not use ffanout(fs::Tuple) with fs elements that are types, due to possible type instabilities, use `ffanout(fs...)` instead."))
     end
 end
 

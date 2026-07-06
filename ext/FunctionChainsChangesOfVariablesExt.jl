@@ -156,7 +156,7 @@ function ChangesOfVariables.with_logabsdet_jacobian(::FCartProd{<:Tuple{Vararg{t
     return with_logabsdet_jacobian(identity, x)
 end
 
-function ChangesOfVariables.with_logabsdet_jacobian(@nospecialize(fs::FCartProd{<:Tuple}), @nospecialize(x::Tuple))
+function ChangesOfVariables.with_logabsdet_jacobian(@nospecialize(fp::FCartProd{<:Tuple}), @nospecialize(x::Tuple))
     throw(ArgumentError("Can't apply FCartProd over Tuple of length $(length(fp._fs)) to Tuple of length $(length(x))."))
 end
 
@@ -169,7 +169,7 @@ function ChangesOfVariables.with_logabsdet_jacobian(::FCartProd{<:NamedTuple{nam
     return with_logabsdet_jacobian(identity, x)
 end
 
-function ChangesOfVariables.with_logabsdet_jacobian(@nospecialize(fs::FCartProd{<:NamedTuple}), @nospecialize(x::NamedTuple))
+function ChangesOfVariables.with_logabsdet_jacobian(@nospecialize(fp::FCartProd{<:NamedTuple}), @nospecialize(x::NamedTuple))
     throw(ArgumentError("Can't apply FCartProd over NamedTuple with names $(propertynames(fp._fs)) to NamedTuple with names $(propertynames(x))."))
 end
 

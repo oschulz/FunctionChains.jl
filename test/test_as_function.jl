@@ -48,6 +48,7 @@ include("testfuncs.jl")
 
     @test @inferred(asfunction(mc)) isa FunctionChains.AsFunction
     f_mc = asfunction(mc)
+    @test @inferred(broadcast(f_mc, [1.2, 2.3])) == mc.([1.2, 2.3])
     y = 5.2
     @test @inferred(f_mc(x)) == mc(x)
     @test @inferred(f_mc(x, y)) == mc(x, y)

@@ -111,7 +111,7 @@ Base.iterate(fc::FunctionChain, state) = iterate(fc._fs, state)
 # Enables `(; fc...)`
 Base.merge(a::NamedTuple, fc::FunctionChain{<:NamedTuple{names}}) where {names} = merge(a, fc._fs)
 
-convert(::Type{FunctionChain}, f::ComposedFunction) = ComposedFunction(fchainfs(f))
+Base.convert(::Type{FunctionChain}, f::ComposedFunction) = FunctionChain(fchainfs(f))
 
 @inline Base.:(∘)(f::FunctionChain, g::FunctionChain) = _compose_fc_fc(f, g)
 @inline Base.:(∘)(f::FunctionChain, g::ComposedFunction) = _compose_fc_fc(f, FunctionChain(fchainfs(g)))

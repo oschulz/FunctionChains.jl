@@ -1,5 +1,7 @@
 # This file is a part of FunctionChains.jl, licensed under the MIT License (MIT).
 
+if !isdefined(Main, :MulCallable)
+
 import LinearAlgebra, Random
 import InverseFunctions, ChangesOfVariables
 
@@ -52,3 +54,5 @@ end
 MCStep(f) = MCStep(f, Random.default_rng())
 
 (mcstep::MCStep)(x) = mcstep.f(mcstep.rng, x)
+
+end # !isdefined(Main, :MulCallable)

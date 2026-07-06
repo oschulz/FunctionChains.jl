@@ -24,7 +24,7 @@ ChangesOfVariables.with_logabsdet_jacobian(ff::AsFunction, x) = with_logabsdet_j
 @inline ChangesOfVariables.with_logabsdet_jacobian(fc::FunctionChain, x) = _withladj_fc(fc, x)
 @inline ChangesOfVariables.with_logabsdet_jacobian(bfc::_BCastedFC, x) = _withladj_fc(bfc, x)
 
-_iterate_fs_withladj(::Nothing, fs, x, f_wrap) = throw(ArgumentError("Chain of functions must not be an empty iterable"))
+_iterate_fs_withladj(::Nothing, fs, x, f_wrap) = with_logabsdet_jacobian(identity, x)
 
 function _iterate_fs_withladj((f1, itr_state), fs, x, f_wrap)
     y_ladj = with_logabsdet_jacobian(f_wrap(f1), x)

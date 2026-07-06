@@ -47,7 +47,7 @@ end
 function _set_fc_fs_iterable(fs, x, z, f_apply, f_wrap)
     n = length(fs)
     if n < 1
-        throw(ArgumentError("Chain of functions must not be an empty iterable"))
+        return set(x, identity, z)
     elseif n == 1
         return set(x, first(fs), z)
     else

@@ -76,7 +76,13 @@ include("testfuncs.jl")
                 @test @inferred(with_logabsdet_jacobian(fc, x)) == y_ladj_ref
                 ChangesOfVariables.test_with_logabsdet_jacobian(fc, x, getjacobian)
             else
-                @test @inferred(with_logabsdet_jacobian(fc, x)) isa NoLogAbsDetJacobian
+                if fchainfs(fc) isa Union{Tuple,NamedTuple}
+                    @test @inferred(with_logabsdet_jacobian(fc, x)) isa NoLogAbsDetJacobian
+                else
+                    # Iterable-backed chains infer a small union here, since an
+                    # empty chain acts as identity:
+                    @test with_logabsdet_jacobian(fc, x) isa NoLogAbsDetJacobian
+                end
             end
 
             if !isnothing(xs)
@@ -238,6 +244,19 @@ include("testfuncs.jl")
         @test set(0.3, fc, 0.9) == set(0.3, abs ∘ Mul(2.0), 0.9)
         @test set([0.3, -0.4], fbcast(fc), [0.9, 0.8]) == set.([0.3, -0.4], Ref(abs ∘ Mul(2.0)), [0.9, 0.8])
     end
+
+    # Empty chains act as identity:
+    @test fchain()(0.3) == 0.3
+    let fc = fchain(Function[])
+        @test fc(0.3) == 0.3
+        @test with_intermediate_results(fc, 0.3) == [0.3]
+        @test inverse(fc)(0.3) == 0.3
+        @test with_logabsdet_jacobian(fc, 0.3) == (0.3, 0.0)
+        @test set(0.3, fc, 0.9) == 0.9
+        @test fbcast(fc)([0.3, 0.4]) == [0.3, 0.4]
+        @test with_logabsdet_jacobian(fbcast(fc), [0.3, 0.4]) == ([0.3, 0.4], 0.0)
+    end
+    @test fchain(sin for i in 1:0)(0.3) == 0.3
 
     @static if isdefined(Main, :FlexiMaps)
         @testset "FlexiMaps support" begin

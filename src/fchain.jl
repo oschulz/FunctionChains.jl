@@ -151,7 +151,7 @@ end
 @inline _compose_sf_fc(f::F, g::FunctionChain{<:AbstractVector{F}}) where F = FunctionChain(push!(copy(g._fs), f))
 
 
-_iterate_fs(::Nothing, fs, x, f_apply) = throw(ArgumentError("Chain of functions must not be an empty iterable"))
+_iterate_fs(::Nothing, fs, x, f_apply) = x
 
 function _iterate_fs((f1, itr_state), fs, x, f_apply)
     y = f_apply(f1, x)
@@ -171,7 +171,7 @@ end
 _bc_fc(fc::FunctionChain, x) = _iterate_fs(iterate(fc._fs), fc._fs, x, broadcast)
 
 
-_iterate_fs_withintermediate(::Nothing, fs, x::T) where T = throw(ArgumentError("Chain of functions must not be an empty iterable"))
+_iterate_fs_withintermediate(::Nothing, fs, x, f_apply) = _push!!(_similar_empty(fs, typeof(x)), x)
 
 function _iterate_fs_withintermediate((f1, itr_state), fs, x, f_apply)
     y = f_apply(f1, x)
@@ -324,6 +324,7 @@ other function chain types for specific types of functions.
 
 `fs` must be iterable, it may be a tuple, vector, generator, etc.
 `fchain(fs)(x)` will apply the functions in `fs` in order of iteration.
+A chain of zero functions acts as the identity function.
 
 The resulting function chain supports [`with_intermediate_results`](@ref), and
 also supports `InverseFunctions.inverse` and/or

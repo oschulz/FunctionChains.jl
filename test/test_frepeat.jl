@@ -22,4 +22,8 @@ using InverseFunctions: inverse
     @test f∘̂ -1 == inverse(f)
     @test f∘̂ n == fc
     @test f∘̂ -n == inverse(fc)
+
+    @test frepeat(f, 0)(x) == x
+    @test inverse(frepeat(f, 0))(x) == x
+    @test with_intermediate_results(frepeat(f, 0), x) == [x]
 end

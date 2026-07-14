@@ -25,4 +25,6 @@ include("frepeat.jl")
 include("fcprod.jl")
 include("ffanout.jl")
 
+VERSION >= v"1.11" && eval(Meta.parse("public AsFunction, fuse_functions"))
+
 end # module

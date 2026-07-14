@@ -34,5 +34,11 @@ using AffineMaps
         @test @inferred(ffcomp(identity, Float32 ∘ identity ∘ Int, identity)) === ffchain(identity, Float32 ∘ identity ∘ Int, identity)
         @test @inferred(ffcomp((sin ∘ cos) ∘ identity ∘ (tan ∘ identity))) === ffchain((sin ∘ cos) ∘ identity ∘ (tan ∘ identity))
         @test @inferred(ffcomp((sin ∘ cos) ∘ identity ∘ (tan ∘ identity), fchain(exp, log, sqrt), Float32)) === ffchain(Float32, fchain(exp, log, sqrt), (sin ∘ cos) ∘ identity ∘ (tan ∘ identity))
+
+        @test @inferred(ffcomp(FCTestScale(3.0), FCTestScale(2.0))) === FCTestScale(6.0)
+        @test @inferred(ffcomp(log10 ∘ exp10)) === identity
+        @test @inferred(ffcomp(fchain(FCTestScale(2.0), FCTestScale(3.0)))) === FCTestScale(6.0)
+        @test @inferred(ffcomp(fchain(FCTestScale(2.0), fchain(FCTestScale(3.0), FCTestScale(4.0))))) === FCTestScale(24.0)
+        @test @inferred(ffcomp(exp, log10 ∘ exp10)) === exp
     end
 end

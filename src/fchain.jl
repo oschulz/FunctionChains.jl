@@ -411,6 +411,27 @@ InverseFunctions.inverse(fc::FunctionChain{<:Base.Generator}) = NoInverse(fc)
 
 
 """
+    FunctionChains.fuse_functions(f, g)
+
+Return a tuple of functions that, applied in order, are semantically
+equivalent to the function `f` followed by the function `g` (i.e. to
+`g ∘ f`).
+
+The default implementation returns `(f, g)` unchanged. Specializations
+may fuse `f` and `g` into a single function, returning `(fused_fg,)`, or
+eliminate them, returning `()`, if `f` and `g` cancel each other out.
+
+Used by [`ffchain`](@ref) and [`ffcomp`](@ref) during chain construction,
+in a single left-to-right pass over the chained functions. The returned
+functions are normalized like `ffchain` arguments, removing `identity`
+and flattening compositions and chains.
+"""
+function fuse_functions end
+
+fuse_functions(@nospecialize(f), @nospecialize(g)) = (f, g)
+
+
+"""
     ffchain(f, g, hs...)
     ffchain() = identity
     ffchain(f) = f
@@ -419,8 +440,9 @@ InverseFunctions.inverse(fc::FunctionChain{<:Base.Generator}) = NoInverse(fc)
 Similar to [`fchain((f, g, hs...))`](@ref), but flattens arguments of type
 `ComposedFunction` and merges [`FunctionChain`](@ref) arguments.
 
-Tries to remove superfluous `identity` functions and to return a simple
-function instead of a `FunctionChain` if possible.
+Tries to remove superfluous `identity` functions, to fuse adjacent
+functions via [`FunctionChains.fuse_functions`](@ref) and to return a
+simple function instead of a `FunctionChain` if possible.
 
 Behaves like `ffcomp(hs..., g, f)` (see [`ffcomp`](@ref)).
 """
@@ -430,7 +452,7 @@ export ffchain
 @inline ffchain() = identity
 @inline ffchain(f) = f
 @inline ffchain(::Type{F}) where F = FunctionChains.AsFunction{Type{F}}(F)
-@inline ffchain(f::ComposedFunction) = _flat_fs_postproc(_flat_fs(f))
+@inline ffchain(f::ComposedFunction) = _ffchain_postproc(_flat_fs(f))
 
 @inline _flat_fs(f::F) where F = (f,)
 @inline _flat_fs(::typeof(identity)) = ()
@@ -441,6 +463,15 @@ export ffchain
 @inline _flat_fs_postproc(::Tuple{}) = identity
 @inline _flat_fs_postproc(fs::Tuple{F}) where F = fs[1]
 @inline _flat_fs_postproc(fs::Tuple) = FunctionChain(fs)
+
+@inline _ffchain_postproc(fs::Tuple) = _flat_fs_postproc(foldl(_fuse_step, fs, init = ()))
+
+@inline _fuse_step(::Tuple{}, f) = (f,)
+@inline _fuse_step(done::Tuple, f) =
+    (Base.front(done)..., _flat_fs_all(fuse_functions(last(done), f))...)
+
+@inline _flat_fs_all(::Tuple{}) = ()
+@inline _flat_fs_all(fs::Tuple) = (_flat_fs(first(fs))..., _flat_fs_all(Base.tail(fs))...)
 
 @inline @generated function ffchain(fs::Vararg{Any,N}) where N
     expr = Expr(:tuple)
@@ -457,8 +488,8 @@ export ffchain
         return :(identity)
     elseif length(expr.args) == 1
         only_fs = only(only(expr.args).args)
-        return :(_flat_fs_postproc($only_fs))
+        return :(_ffchain_postproc($only_fs))
     else
-        return :(FunctionChain($(expr)))
+        return :(_ffchain_postproc($(expr)))
     end
 end

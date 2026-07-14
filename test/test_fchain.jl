@@ -15,6 +15,13 @@ include("approx_cmp.jl")
 include("modify_output.jl")
 include("testfuncs.jl")
 
+struct FCTestScale{T} <: Function
+    a::T
+end
+(f::FCTestScale)(x) = f.a * x
+FunctionChains.fuse_functions(f::FCTestScale, g::FCTestScale) = (FCTestScale(g.a * f.a),)
+FunctionChains.fuse_functions(::typeof(exp10), ::typeof(log10)) = ()
+
 @testset "function_chain" begin
     fc2cf(fc::FunctionChain) = foldl(∘, reverse(collect(fchainfs(fc))))
     fbcast_fc2cf(fc::FunctionChain) = foldl(∘, reverse(map(Broadcast.BroadcastFunction, collect(fchainfs(fc)))))
@@ -284,5 +291,15 @@ include("testfuncs.jl")
         @test @inferred(ffchain((identity ∘ identity) ∘ identity ∘ (identity ∘ identity))) === identity
         @test @inferred(ffchain((sin ∘ cos) ∘ identity ∘ (tan ∘ identity))) === fchain(tan, cos, sin)
         @test @inferred(ffchain((sin ∘ cos) ∘ identity ∘ (tan ∘ identity), fchain(exp, log, sqrt), Float32)) === fchain(tan, cos, sin, exp, log, sqrt, Float32)
+
+        @test @inferred(FunctionChains.fuse_functions(sin, cos)) === (sin, cos)
+        @test @inferred(ffchain(FCTestScale(2.0), FCTestScale(3.0))) === FCTestScale(6.0)
+        @test @inferred(ffchain(FCTestScale(2.0), FCTestScale(3.0), exp)) === fchain(FCTestScale(6.0), exp)
+        @test @inferred(ffchain(log, FCTestScale(2.0), FCTestScale(3.0), exp)) === fchain(log, FCTestScale(6.0), exp)
+        @test @inferred(ffchain(exp10, log10)) === identity
+        @test @inferred(ffchain(sqrt, exp10, log10)) === sqrt
+        @test @inferred(ffchain(sqrt, exp10, log10, exp)) === fchain(sqrt, exp)
+        @test @inferred(ffchain(fchain(sqrt, exp10), log10, exp)) === fchain(sqrt, exp)
+        @test @inferred(ffchain(FCTestScale(2.0), exp10, log10, FCTestScale(3.0))) === FCTestScale(6.0)
     end
 end

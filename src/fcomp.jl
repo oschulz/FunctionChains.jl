@@ -26,7 +26,12 @@ export fcomp
 @inline fcomp(fs) = fchain(reverse(fs))
 @inline fcomp(fs::Tuple{Vararg{Function}}) = fchain(reverse(fs))
 
-@inline fcomp(fs::Vararg{Any}) = fchain(reverse(fs)...)
+# Generated so that the arguments are passed on in reverse order without a
+# runtime splat of a reversed tuple, which Zygote can't differentiate through:
+@inline @generated function fcomp(fs::Vararg{Any,N}) where N
+    args = [:(fs[$i]) for i in N:-1:1]
+    return :(fchain($(args...)))
+end
 
 function fcomp(@nospecialize(fs::Tuple))
     throw(ArgumentError("Do not use fcomp(fs::Tuple) with fs elements not of type Function, due to possible type instabilities, use `fcomp(fs...)` instead."))
@@ -61,4 +66,9 @@ export ffcomp
 @inline ffcomp(f::ComposedFunction) = _ffchain_postproc(_flat_fs(f))
 @inline ffcomp(f::FunctionChain{<:Tuple}) = _ffchain_postproc(_flat_fs(f))
 
-@inline ffcomp(fs::Vararg{Any,N}) where N = ffchain(reverse(fs)...)
+# Generated so that the arguments are passed on in reverse order without a
+# runtime splat of a reversed tuple, which Zygote can't differentiate through:
+@inline @generated function ffcomp(fs::Vararg{Any,N}) where N
+    args = [:(fs[$i]) for i in N:-1:1]
+    return :(ffchain($(args...)))
+end

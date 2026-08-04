@@ -4,6 +4,7 @@ using FunctionChains
 using Test
 
 using AffineMaps
+import ForwardDiff, Zygote
 
 @testset "fcomp" begin
     fs_tpl = (log, sqrt, exp)
@@ -41,4 +42,19 @@ using AffineMaps
         @test @inferred(ffcomp(fchain(FCTestScale(2.0), fchain(FCTestScale(3.0), FCTestScale(4.0))))) === FCTestScale(24.0)
         @test @inferred(ffcomp(exp, log10 ∘ exp10)) === exp
     end
+
+    @testset "AD through composition construction" begin
+        # Zygote must handle compositions constructed inside the
+        # differentiated function, including parameters captured in
+        # composed closures:
+        for compose in (fcomp, ffcomp)
+            f_grad2 = x -> compose(y -> y + x, y -> 2 * y)(1.0)
+            @test Zygote.gradient(f_grad2, 3.0)[1] == 1.0
+            f_grad3 = x -> compose(y -> y + x, y -> 2 * y, y -> y - 1)(1.0)
+            @test Zygote.gradient(f_grad3, 3.0)[1] == 1.0
+            f_nograd = x -> compose(sin, cos)(x)
+            @test Zygote.gradient(f_nograd, 0.3)[1] ≈ ForwardDiff.derivative(f_nograd, 0.3)
+        end
+    end
+
 end
